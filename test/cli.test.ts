@@ -14,7 +14,10 @@ const INDEX = pathToFileURL(join(ROOT, "src/index.ts")).href;
 
 function cli(args: string[], cwd: string, input = ""): Promise<{ code: number | null; out: string }> {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [CLI, ...args], { cwd, env: { ...process.env, GITHUB_STEP_SUMMARY: join(cwd, "summary.md") } });
+    // Plain output on purpose: the test runner may pass FORCE_COLOR to children when it runs in a terminal.
+    const env = { ...process.env, GITHUB_STEP_SUMMARY: join(cwd, "summary.md"), NO_COLOR: "1" };
+    delete env.FORCE_COLOR;
+    const child = spawn(process.execPath, [CLI, ...args], { cwd, env });
     let out = "";
     child.stdout.on("data", (d) => (out += d));
     child.stderr.on("data", (d) => (out += d));
