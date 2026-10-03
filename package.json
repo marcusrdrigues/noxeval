@@ -40,14 +40,15 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/cli/main.js",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "test": "node --test \"test/*.test.ts\"",
-    "prepublishOnly": "npm run check && npm run build",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run typecheck && npm run lint && npm run format:check && npm test"
+    "test": "node --test \"test/*.test.ts\"",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm test",
+    "prepublishOnly": "npm run check && npm run build"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

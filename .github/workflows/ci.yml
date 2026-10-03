@@ -10,10 +10,12 @@ permissions:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     strategy:
       matrix:
+        # Windows too: contributors build there, and shell-only commands (rm, chmod) break on it.
+        os: [ubuntu-latest, windows-latest]
         node: [22, 24]
     steps:
       - uses: actions/checkout@v7
@@ -25,6 +27,7 @@ jobs:
       - run: npm run check
       - run: npm run build
       - name: CLI against the example app
+        if: runner.os == 'Linux'
         run: |
           node examples/bookstore/server.mjs &
           sleep 1
