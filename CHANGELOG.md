@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - unreleased
+
+### Added
+
+- A terminal look for `run` and `review`: the NOX wordmark, live progress, case lines with the reason under each failure, and a summary box with bars for the score, the judge and the planted errors. Color only on an interactive terminal; plain text in CI, in logs, with `NO_COLOR` or `TERM=dumb` (`FORCE_COLOR` turns it on).
+
 ## [0.1.0] - 2026-10-03
 
 ### Added

@@ -4,6 +4,10 @@
 
 [Read in English](README.md)
 
+![noxeval rodando no terminal: cinco casos, uma falha explicada e o resumo com placar, juiz e erros plantados](https://raw.githubusercontent.com/marcusrdrigues/noxeval/main/docs/assets/noxeval-run.png)
+
+<sub>O exemplo da livraria com um juiz de demonstração. Na CI e em logs, a mesma rodada sai em texto puro.</sub>
+
 ## Por quê
 
 A maioria das avaliações de LLM termina num número dado por outro LLM. É difícil confiar nesse número: o juiz também é um modelo, pode ser enganado pela mesma injeção de prompt que está avaliando, e "o juiz deu 95%" não diz se o juiz está certo.

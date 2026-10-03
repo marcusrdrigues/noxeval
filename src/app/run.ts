@@ -13,6 +13,8 @@ export type RunOptions = {
   planted?: PlantedError[];
   /** Cases asked at the same time. Default 1: gentle on rate limits and quotas. */
   concurrency?: number;
+  /** A case was sent to the target (for progress displays). */
+  onStart?: (c: EvalCase, inFlight: number) => void;
   onCase?: (result: CaseResult, done: number, total: number) => void;
   onPlanted?: (result: PlantedResult) => void;
   now?: () => Date;
@@ -43,9 +45,11 @@ export async function runEval(o: RunOptions): Promise<Report> {
   const runAt = now().toISOString();
   const contexts = new Map<string, string[]>();
   let done = 0;
+  let inFlight = 0;
 
   const results = await pool(o.cases, o.concurrency ?? 1, async (c): Promise<CaseResult> => {
     const base = { id: c.id, question: c.question, expect: c.expect, locale: c.locale, category: c.category, tags: c.tags };
+    o.onStart?.(c, ++inFlight);
     const t0 = performance.now();
     let result: CaseResult;
     try {
@@ -74,6 +78,7 @@ export async function runEval(o: RunOptions): Promise<Report> {
     } catch (err) {
       result = { ...base, passed: false, failures: [{ code: "error", detail: message(err) }], answer: "", contextSize: 0, ms: null };
     }
+    inFlight--;
     o.onCase?.(result, ++done, o.cases.length);
     return result;
   });
