@@ -1,0 +1,60 @@
+{
+  "name": "noxeval",
+  "version": "0.1.0",
+  "description": "Evaluate LLM apps you can trust: deterministic checks first, an optional judge second, and planted errors plus blind human review to check the judge.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Marcus Rodrigues (https://marcusrdrigues.com)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/marcusrdrigues/noxeval.git"
+  },
+  "homepage": "https://github.com/marcusrdrigues/noxeval#readme",
+  "bugs": "https://github.com/marcusrdrigues/noxeval/issues",
+  "keywords": [
+    "llm",
+    "eval",
+    "evaluation",
+    "llm-as-a-judge",
+    "rag",
+    "testing",
+    "prompt-injection",
+    "cohen-kappa"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "bin": {
+    "noxeval": "dist/cli/main.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "README.pt-BR.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/cli/main.js",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"test/*.test.ts\"",
+    "prepublishOnly": "npm run check && npm run build",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^22.18.0",
+    "eslint": "^9.39.5",
+    "prettier": "^3.9.9",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.71.0"
+  }
+}

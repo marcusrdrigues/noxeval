@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.tgz
+.env
+.env.*
+noxeval-report.json
+noxeval-report.md
+noxeval-review.json

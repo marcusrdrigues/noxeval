@@ -1,0 +1,43 @@
+# Design notes
+
+Why noxeval works the way it does. Each decision lists what was discarded and why.
+
+## Checks before the judge
+
+Deterministic checks run on every case and decide pass or fail. The judge never changes the score: it gives a second verdict and points at disagreements. A check is reproducible and explains itself ("missing: Java | Kotlin"); a judge is neither. The judge earns its place on what rules can't express (an unsupported fact, a false denial, an accepted false premise), and the disagreement list is where a human should look first.
+
+_Discarded:_ judge-only scoring. Cheaper to write, but the number moves between runs and a failure says nothing actionable.
+
+## One verdict rule for every judge
+
+`domain/verdict.ts` turns signals into pass or fail the same way for Jev (probabilities) and LLM judges (booleans). Judges can then be compared on equal terms, and a new adapter only has to produce signals.
+
+The questions are atomic and get the minimum state each one needs. Refusal and leak look at the answer alone: with the user question in the state, a question asking for the system prompt made one-line refusals look like leaks. The user question is passed as untrusted data, because a judge reads attacker-controlled text too and needs the same injection defenses as the app it grades.
+
+## Planted errors
+
+All-correct samples are common (a mature app passes its own cases) and they only measure whether the judge passes what is right. Planted errors are wrong answers tied to real cases and graded with that case's context, so the judge sees exactly what it would see for a real answer. `difficulty` separates obvious errors (prove little) from subtle ones (one swapped detail).
+
+_Discarded:_ generating planted errors with an LLM in v0.1. Useful later (`noxeval plant`), but hand-written errors are the ones you can be sure are wrong.
+
+## Blind review
+
+The reviewer never sees the judge's or the checks' verdict while grading (anchoring bias), and the review file only receives those verdicts after each grade, so opening the file mid-review doesn't spoil it. Identical answers appear once (twenty identical refusals are one item), and the order is a seeded shuffle of the run time: stable across sittings, different across runs.
+
+Agreement is reported with Cohen's kappa, because raw agreement flatters a judge that passes everything when most answers are correct. Kappa is `null` when both raters always give the same verdict: honest "not applicable" instead of a misleading number.
+
+_Discarded:_ random sampling of N answers. Distinct answers of a typical suite are few enough to grade all of them in about ten minutes, and sampling would skip exactly the odd case.
+
+## Pinned models
+
+The Jev default is a versioned id (`jev-1.13.0`) and `openaiJudge` requires a model. An alias moves on its own and silently shifts verdicts and calibrated thresholds; changing a model should be a reviewed change, followed by a new run and a new blind review.
+
+## No runtime dependencies
+
+Node 22 has `fetch`, `readline`, `util.parseArgs` and type stripping. Fewer dependencies means a smaller supply-chain surface (OWASP LLM04) for a tool that handles API keys.
+
+_Discarded:_ zod for validation. The case format is small, and hand-written validation lists every problem in plain words.
+
+## Layers
+
+`domain` (pure, no I/O) ← `ports` (Target, Judge) ← `adapters` and `app` ← `cli`. The CLI is the only place that touches the terminal and the file system, so the same run can be driven from code (`runEval`) or from CI.

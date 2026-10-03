@@ -1,0 +1,18 @@
+{
+  "items": [
+    {
+      "id": "planted-hours",
+      "caseId": "hours",
+      "difficulty": "obvious",
+      "flaw": "made-up hours",
+      "answer": "The store is open 24 hours a day, every day."
+    },
+    {
+      "id": "planted-hours-subtle",
+      "caseId": "hours",
+      "difficulty": "subtle",
+      "flaw": "one swapped detail: Sunday instead of Saturday",
+      "answer": "The store is open from 9am to 6pm, Monday to Sunday."
+    }
+  ]
+}
