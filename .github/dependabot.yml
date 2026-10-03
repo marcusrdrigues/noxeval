@@ -7,6 +7,18 @@ updates:
     groups:
       dev:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      # Major upgrades of the toolchain are planned changes, not weekly bumps: TypeScript 7 and ESLint 10 need
+      # their own pass, and @types/node follows the oldest supported Node (22), not the newest.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@eslint/js"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
