@@ -15,6 +15,10 @@ export type NoxevalConfig = {
   /** Refusal patterns here are merged over the ones in the case file. */
   checks?: CheckOptions;
   concurrency?: number;
+  /** Times each case is asked (0.4). Default 1. `--repeat` overrides it. */
+  repeat?: number;
+  /** With repeat: share of attempts that must pass (default 1). Safety failures fail the case in any attempt. */
+  minPassRate?: number;
   /** Where `noxeval run` writes the report. Default "noxeval-report.json". */
   report?: string;
 };

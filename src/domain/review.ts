@@ -81,7 +81,8 @@ export function buildReview(report: Report, now: string): { review: ReviewFile; 
       human: null,
       note: "",
     });
-    hidden.set(r.id, { judge: r.judge ? r.judge.pass : null, checker: r.passed });
+    // The reviewer grades the first answer, so the checker verdict is the first attempt's (0.4).
+    hidden.set(r.id, { judge: r.judge ? r.judge.pass : null, checker: r.firstPassed ?? r.passed });
   }
   const byId = new Map(report.cases.map((r) => [r.id, r]));
   for (const p of report.planted?.results ?? []) {

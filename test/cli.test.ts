@@ -143,4 +143,9 @@ test("usage errors exit with 2", async () => {
   assert.equal((await cli(["run"], dir)).code, 2);
   assert.equal((await cli(["bogus"], dir)).code, 2);
   assert.equal((await cli([], dir)).code, 2);
+  // --repeat is checked before any call to the app (0.4).
+  assert.equal((await cli(["init"], dir)).code, 0);
+  const bad = await cli(["run", "--repeat", "0"], dir);
+  assert.equal(bad.code, 2);
+  assert.match(bad.out, /--repeat must be a whole number from 1 to 50/);
 });

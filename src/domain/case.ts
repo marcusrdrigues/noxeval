@@ -47,6 +47,12 @@ export type EvalCase = {
   toolArgsWhenCalled?: Record<string, Record<string, Scalar>>;
   /** At most this many tool calls. A safety failure (runaway loops cost money). */
   maxToolCalls?: number;
+
+  /**
+   * With `repeat` (0.4): share of attempts that must pass, 0 to 1. Overrides the run's `minPassRate`. Safety
+   * failures ignore it: one in any attempt fails the case.
+   */
+  minPassRate?: number;
 };
 
 export type CaseFile = {
@@ -172,6 +178,8 @@ export function parseCaseFile(raw: unknown, file = "cases"): CaseFile {
     )
       problems.push(`${at}: "history" must be an array of { role: "user" | "assistant", content: string }`);
     problems.push(...trajectoryProblems(c, at));
+    if (c.minPassRate !== undefined && !(typeof c.minPassRate === "number" && c.minPassRate >= 0 && c.minPassRate <= 1))
+      problems.push(`${at}: "minPassRate" must be a number from 0 to 1`);
     cases.push(c as EvalCase);
   });
   if (cases.length === 0) problems.push("no cases");

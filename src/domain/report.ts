@@ -1,4 +1,5 @@
 import type { Difficulty, ToolCall } from "./case.ts";
+import type { Attempt } from "./variance.ts";
 import type { Failure } from "./checks.ts";
 import type { JudgeVerdict } from "../ports.ts";
 import { percentile, type AgreementStats } from "./agreement.ts";
@@ -20,6 +21,11 @@ export type CaseResult = {
   meta?: Record<string, string | number | boolean | null>;
   /** Tool calls the app reported for this case (0.3). */
   toolCalls?: ToolCall[];
+  /** With repeat > 1 (0.4): every attempt, the first one's verdict, the pass rate and its 95% Wilson lower bound. */
+  attempts?: Attempt[];
+  firstPassed?: boolean;
+  passRate?: number;
+  passRateLow?: number;
   judge?: JudgeVerdict | null;
   judgeError?: string;
 };
@@ -84,6 +90,10 @@ export type Report = {
   tools?: ToolsSummary | null;
   /** Last blind review of this run, written by `noxeval review`. */
   human: HumanCheck | null;
+  /** Times each case was asked (0.4); absent in older reports means 1. */
+  repeat?: number;
+  /** Cases that passed some attempts and failed others (0.4). */
+  flaky?: string[];
   cases: CaseResult[];
 };
 
@@ -103,13 +113,15 @@ function tally(results: CaseResult[], keysOf: (r: CaseResult) => string[]): Reco
 export function summarizeJudge(name: string, results: CaseResult[]): JudgeSummary | null {
   const judged = results.filter((r): r is CaseResult & { judge: JudgeVerdict } => Boolean(r.judge));
   if (judged.length === 0) return null;
-  const agree = judged.filter((r) => r.judge.pass === r.passed);
+  // The judge graded the first attempt, so it is compared with that attempt's verdict (0.4).
+  const first = (r: CaseResult) => r.firstPassed ?? r.passed;
+  const agree = judged.filter((r) => r.judge.pass === first(r));
   return {
     name,
     model: judged.find((r) => r.judge.model)?.judge.model ?? null,
     evaluated: judged.length,
     agreementWithChecker: Math.round((agree.length / judged.length) * 1000) / 1000,
-    disagreements: judged.filter((r) => r.judge.pass !== r.passed).map((r) => r.id),
+    disagreements: judged.filter((r) => r.judge.pass !== first(r)).map((r) => r.id),
     lowConfidence: agree.filter((r) => r.judge.confidence !== null && r.judge.confidence < LOW_CONFIDENCE).map((r) => r.id),
   };
 }
@@ -147,8 +159,13 @@ export function buildReport(input: {
   judgeName: string | null;
   cases: CaseResult[];
   planted: PlantedResult[];
+  repeat?: number;
 }): Report {
-  const ms = input.cases.map((r) => r.ms).filter((v): v is number => typeof v === "number");
+  // Latency over every attempt: more samples, same meaning.
+  const ms = input.cases
+    .flatMap((r) => (r.attempts ? r.attempts.map((a) => a.ms) : [r.ms]))
+    .filter((v): v is number => typeof v === "number");
+  const repeat = input.repeat ?? 1;
   return {
     tool: { name: "noxeval", version: input.version },
     runAt: input.runAt,
@@ -162,6 +179,9 @@ export function buildReport(input: {
     planted: summarizePlanted(input.planted),
     tools: summarizeTools(input.cases),
     human: null,
+    ...(repeat > 1
+      ? { repeat, flaky: input.cases.filter((r) => r.passRate !== undefined && r.passRate > 0 && r.passRate < 1).map((r) => r.id) }
+      : {}),
     cases: input.cases,
   };
 }

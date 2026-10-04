@@ -17,6 +17,7 @@ export {
   type FailureCode,
 } from "./domain/checks.ts";
 export { checkTrajectory, formatCall } from "./domain/trajectory.ts";
+export { summarizeAttempts, wilsonLow, type Attempt, type AttemptsSummary } from "./domain/variance.ts";
 export { asToolCall } from "./adapters/http-target.ts";
 export { agreementStats, percentile, type AgreementStats, type Pair } from "./domain/agreement.ts";
 export { decide, sureness, type Signals } from "./domain/verdict.ts";

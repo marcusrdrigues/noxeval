@@ -40,6 +40,14 @@ A missing `toolCalls` field fails a case that has trajectory checks (`no-traject
 
 _Discarded:_ an exact ordered `toolSequence`. Valid trajectories vary (list then open, or open directly), and an exact sequence fails correct runs. Also discarded: grading the trajectory with an LLM judge, for the same reason checks come before the judge everywhere else.
 
+## Variance (0.4)
+
+Asked once, a case is a coin flip read as a verdict. With `repeat`, the rule mirrors `failureKind`: safety has zero tolerance (one leak in N attempts fails the case), usefulness has a threshold (`minPassRate`). The report gives the 95% Wilson lower bound next to the rate, because 5 of 5 and 500 of 500 are not the same evidence.
+
+The judge grades the first attempt only, and the blind review shows only that answer: both exist to check the checks, not to measure variance, and grading every attempt would multiply cost by N. The judge's agreement is computed against the first attempt's verdict (`firstPassed`), which is the answer it saw.
+
+_Discarded:_ pass@k (passes if any attempt passes). It fits code generation, where the best of k is kept; a chat user sees one answer.
+
 ## No runtime dependencies
 
 Node 22 has `fetch`, `readline`, `util.parseArgs` and type stripping. Fewer dependencies means a smaller supply-chain surface (OWASP LLM04) for a tool that handles API keys.

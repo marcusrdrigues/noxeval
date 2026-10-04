@@ -1,4 +1,5 @@
 import type { EvalCase, PlantedError } from "../domain/case.ts";
+import { summarizeAttempts, type Attempt } from "../domain/variance.ts";
 import { check, type CheckOptions } from "../domain/checks.ts";
 import { checkTrajectory } from "../domain/trajectory.ts";
 import { buildReport, type CaseResult, type PlantedResult, type Report } from "../domain/report.ts";
@@ -12,6 +13,10 @@ export type RunOptions = {
   /** Optional. Without a judge, planted errors are skipped (there is nothing to measure). */
   judge?: Judge | null;
   planted?: PlantedError[];
+  /** Times each case is asked (0.4). Default 1. With more, the report has a pass rate per case and the flaky ones. */
+  repeat?: number;
+  /** With `repeat`: share of attempts that must pass (default 1). Safety failures fail the case in any attempt. */
+  minPassRate?: number;
   /** Cases asked at the same time. Default 1: gentle on rate limits and quotas. */
   concurrency?: number;
   /** A case was sent to the target (for progress displays). */
@@ -48,17 +53,29 @@ export async function runEval(o: RunOptions): Promise<Report> {
   let done = 0;
   let inFlight = 0;
 
+  const repeat = Math.max(1, Math.floor(o.repeat ?? 1));
+
+  /** One ask of one case: answer checks and trajectory checks. A failing target becomes an "error" failure. */
+  async function attempt(c: EvalCase) {
+    const t0 = performance.now();
+    try {
+      const r = await o.target.ask(c);
+      const failures = [...check(c, r.answer, o.checks), ...checkTrajectory(c, r.toolCalls)];
+      return { ok: true as const, r, ms: Math.round(performance.now() - t0), failures };
+    } catch (err) {
+      return { ok: false as const, error: message(err) };
+    }
+  }
+
   const results = await pool(o.cases, o.concurrency ?? 1, async (c): Promise<CaseResult> => {
     const base = { id: c.id, question: c.question, expect: c.expect, locale: c.locale, category: c.category, tags: c.tags };
     o.onStart?.(c, ++inFlight);
-    const t0 = performance.now();
     let result: CaseResult;
-    try {
-      const r = await o.target.ask(c);
-      const ms = Math.round(performance.now() - t0);
+    const first = await attempt(c);
+    if (first.ok) {
+      const { r, ms, failures } = first;
       const context = r.context ?? [];
       contexts.set(c.id, context);
-      const failures = [...check(c, r.answer, o.checks), ...checkTrajectory(c, r.toolCalls)];
       result = {
         ...base,
         passed: failures.length === 0,
@@ -69,6 +86,7 @@ export async function runEval(o: RunOptions): Promise<Report> {
         ...(r.toolCalls ? { toolCalls: r.toolCalls } : {}),
         ...(r.meta ? { meta: r.meta } : {}),
       };
+      // The judge grades the first attempt only: it checks the checks, it doesn't measure variance (0.4).
       if (o.judge) {
         try {
           result.judge = await o.judge.judge({ case: c, answer: r.answer, context });
@@ -77,8 +95,44 @@ export async function runEval(o: RunOptions): Promise<Report> {
           result.judgeError = message(err);
         }
       }
-    } catch (err) {
-      result = { ...base, passed: false, failures: [{ code: "error", detail: message(err) }], answer: "", contextSize: 0, ms: null };
+    } else {
+      result = { ...base, passed: false, failures: [{ code: "error", detail: first.error }], answer: "", contextSize: 0, ms: null };
+    }
+    if (repeat > 1) {
+      const attempts: Attempt[] = [
+        {
+          passed: result.passed,
+          failures: result.failures,
+          ms: result.ms,
+          answer: result.answer,
+          ...(result.toolCalls ? { toolCalls: result.toolCalls } : {}),
+        },
+      ];
+      for (let i = 1; i < repeat; i++) {
+        const a = await attempt(c);
+        attempts.push(
+          a.ok
+            ? {
+                passed: a.failures.length === 0,
+                failures: a.failures,
+                ms: a.ms,
+                answer: a.r.answer,
+                ...(a.r.toolCalls ? { toolCalls: a.r.toolCalls } : {}),
+              }
+            : { passed: false, failures: [{ code: "error", detail: a.error }], ms: null, answer: "" },
+        );
+      }
+      const s = summarizeAttempts(attempts, c.minPassRate ?? o.minPassRate ?? 1);
+      // The fields of the first attempt stay as they are (judge, review); the verdict and the reasons cover all attempts.
+      result = {
+        ...result,
+        firstPassed: result.passed,
+        passed: s.passed,
+        failures: s.failures,
+        attempts,
+        passRate: s.passRate,
+        passRateLow: s.passRateLow,
+      };
     }
     inFlight--;
     o.onCase?.(result, ++done, o.cases.length);
@@ -110,5 +164,5 @@ export async function runEval(o: RunOptions): Promise<Report> {
     }
   }
 
-  return buildReport({ version: VERSION, runAt, target: o.target.name, judgeName: o.judge?.name ?? null, cases: results, planted });
+  return buildReport({ version: VERSION, runAt, target: o.target.name, judgeName: o.judge?.name ?? null, cases: results, planted, repeat });
 }

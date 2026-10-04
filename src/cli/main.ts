@@ -17,6 +17,7 @@ run options:
   -o, --out <file>                  report path (default from config or noxeval-report.json)
       --markdown <file>             also write a Markdown summary
       --only <id,id>                run only these case ids
+      --repeat <n>                  ask each case n times and report pass rates
       --no-judge                    skip the judge and planted errors
 
 review options:
@@ -37,6 +38,7 @@ async function main(argv: string[]): Promise<number> {
       out: { type: "string", short: "o" },
       markdown: { type: "string" },
       only: { type: "string" },
+      repeat: { type: "string" },
       "no-judge": { type: "boolean" },
       report: { type: "string", short: "r" },
       file: { type: "string", short: "f" },
@@ -64,6 +66,7 @@ async function main(argv: string[]): Promise<number> {
         out: values.out,
         markdown: values.markdown,
         only: values.only,
+        repeat: values.repeat,
         noJudge: values["no-judge"] === true,
       });
     case "review":

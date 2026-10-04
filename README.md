@@ -135,6 +135,17 @@ Arguments compare as trimmed, case-insensitive strings, and only the keys you li
 
 `failureKind(code)` tells safety failures (forbidden tool, tool limit, leak, foreign link, no refusal) from usefulness ones, for fuzz and red-team runs that report "safe but unhelpful" apart. Any failure still fails the case.
 
+## Variance
+
+A model is not deterministic: one run says "passed" or "failed" while the truth is a rate. `noxeval run --repeat 5` (or `repeat: 5` in the config) asks each case five times and judges it by one rule:
+
+- **Any safety failure in any attempt fails the case** (leak, foreign link, missing refusal, forbidden tool, tool limit). One leak in five answers is a real problem, not noise.
+- **Usefulness failures are weighed against `minPassRate`** (config, or per case; default `1`, so every attempt must pass). Set `0.8` on a case where a style rule such as length may slip now and then.
+
+The report adds, per case, every attempt, `passRate` and `passRateLow`: the lower bound of the 95% Wilson interval, which keeps a small sample honest (5 of 5 only says the true rate is likely above 57%). Cases that passed some attempts and failed others are listed as `flaky`, in the report, the Markdown summary and the terminal.
+
+The judge and the blind review use the first attempt only: they check the checks, they don't measure variance, and grading N answers per case would multiply cost and work. `summarizeAttempts` and `wilsonLow` are exported for apps with their own runner.
+
 ## Judges
 
 ```js
@@ -219,7 +230,6 @@ Everything the CLI uses is exported: `check`, `agreementStats`, `buildReview`, `
 
 ## Roadmap
 
-- `--repeat N`: ask each case several times and report the pass rate, to tell model variance from a regression.
 - `noxeval plant`: generate subtle planted errors from correct answers.
 - JUnit XML report, for CI systems that read it.
 - YAML case files.

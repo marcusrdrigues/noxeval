@@ -95,11 +95,15 @@ export function createUi(options: { color: boolean; columns?: number }) {
       failures: string[];
       /** Tool calls already formatted (0.3), shown under the case line. */
       tools?: string[];
+      /** "4/5" when each case was asked several times (0.4). */
+      rate?: string;
     }): string {
       const mark = r.passed ? c.green("✓") : c.red("✗");
       const time = r.ms === null ? "" : c.dim(`${r.ms} ms`);
       const judged = r.judge ? `judge ${r.judge.pass ? c.green("✓") : c.red("✗")}` : r.judgeError ? c.gold("judge error") : "";
-      const head = `  ${mark} ${pad(r.passed ? r.id : c.bold(r.id), 28)} ${pad(time, 9)} ${judged}`.trimEnd();
+      const [ok, of] = (r.rate ?? "").split("/");
+      const rate = r.rate ? `${ok === of ? c.green(r.rate) : c.gold(r.rate)} ` : "";
+      const head = `  ${mark} ${pad(r.passed ? r.id : c.bold(r.id), 28)} ${rate}${pad(time, 9)} ${judged}`.trimEnd();
       const tools = r.tools?.length ? [c.dim(`    tools: ${r.tools.join(" → ")}`)] : [];
       const why = r.failures.map((f, i) => c.dim(`    ${i === r.failures.length - 1 ? "└" : "├"} ${f}`));
       return [head, ...tools, ...why].join("\n");

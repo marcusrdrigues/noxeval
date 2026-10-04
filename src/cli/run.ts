@@ -8,7 +8,7 @@ import type { Report } from "../domain/report.ts";
 import { VERSION } from "../version.ts";
 import { colorEnabled, createUi, spinner, wrap, type Ui } from "./ui.ts";
 
-export type RunArgs = { config?: string; out?: string; markdown?: string; only?: string; noJudge: boolean };
+export type RunArgs = { config?: string; out?: string; markdown?: string; only?: string; repeat?: string; noJudge: boolean };
 
 async function findConfig(explicit?: string): Promise<string> {
   if (explicit) return explicit;
@@ -23,7 +23,11 @@ async function findConfig(explicit?: string): Promise<string> {
   throw new Error("no noxeval.config.mjs here. Create one with: npx noxeval init");
 }
 
+const validRepeat = (n: number) => Number.isInteger(n) && n >= 1 && n <= 50;
+
 export async function runCommand(args: RunArgs): Promise<number> {
+  // A bad flag fails before loading anything (0.4).
+  if (args.repeat !== undefined && !validRepeat(Number(args.repeat))) throw new Error("--repeat must be a whole number from 1 to 50");
   const path = await findConfig(args.config);
   const { config, dir } = await loadConfig(path);
   const inputs = await resolveInputs(config, dir);
@@ -31,10 +35,14 @@ export async function runCommand(args: RunArgs): Promise<number> {
   const cases = only ? inputs.cases.filter((c) => only.has(c.id)) : inputs.cases;
   if (cases.length === 0) throw new Error(`no case matches --only ${args.only}`);
   const judge = args.noJudge ? null : (config.judge ?? null);
+  const repeat = args.repeat === undefined ? (config.repeat ?? 1) : Number(args.repeat);
+  if (!validRepeat(repeat)) throw new Error("repeat must be a whole number from 1 to 50");
 
   const ui = createUi({ color: colorEnabled(process.env, Boolean(process.stdout.isTTY)), columns: process.stdout.columns });
   const live = spinner(ui, (t) => process.stdout.write(t));
-  const plan = `${cases.length} cases against ${config.target.name}${judge ? `, judge ${judge.name}` : ""}`;
+  const plan =
+    `${cases.length} cases against ${config.target.name}${judge ? `, judge ${judge.name}` : ""}` +
+    (repeat > 1 ? `, each asked ${repeat} times (${cases.length * repeat} calls)` : "");
   if (ui.color) console.log(`${ui.banner(VERSION, "evaluate LLM apps you can trust")}\n  ${plan}\n`);
   else console.log(`noxeval: ${plan}\n`);
 
@@ -47,6 +55,8 @@ export async function runCommand(args: RunArgs): Promise<number> {
     judge,
     planted: only ? inputs.planted.filter((p) => only.has(p.caseId)) : inputs.planted,
     concurrency: config.concurrency,
+    repeat,
+    minPassRate: config.minPassRate,
     onStart: (c, inFlight) =>
       live.update(
         inFlight > 1 ? `${inFlight} running · ${finished}/${cases.length} done` : `asking ${c.id} · ${finished}/${cases.length} done`,
@@ -54,12 +64,16 @@ export async function runCommand(args: RunArgs): Promise<number> {
     onCase: (r) => {
       finished++;
       live.clear();
-      if (ui.color) console.log(ui.caseLine({ ...r, failures: r.failures.map(describeFailure), tools: r.toolCalls?.map(formatCall) }));
+      const rate = r.attempts ? `${r.attempts.filter((a) => a.passed).length}/${r.attempts.length}` : undefined;
+      if (ui.color)
+        console.log(ui.caseLine({ ...r, failures: r.failures.map(describeFailure), tools: r.toolCalls?.map(formatCall), rate }));
       else {
         const judged = r.judge ? ` judge:${r.judge.pass ? "pass" : "FAIL"}` : r.judgeError ? " judge:error" : "";
         const why = r.passed ? "" : `  ${r.failures.map(describeFailure).join("; ")}`;
         const tools = r.toolCalls?.length ? ` tools:${r.toolCalls.map((t) => t.name).join(",")}` : "";
-        console.log(`${r.passed ? "ok  " : "FAIL"}  ${r.id}${r.ms !== null ? ` ${r.ms}ms` : ""}${judged}${tools}${why}`);
+        console.log(
+          `${r.passed ? "ok  " : "FAIL"}  ${r.id}${rate ? ` ${rate}` : ""}${r.ms !== null ? ` ${r.ms}ms` : ""}${judged}${tools}${why}`,
+        );
       }
       if (finished < cases.length) live.update(`${finished}/${cases.length} done`);
     },
@@ -86,6 +100,7 @@ export async function runCommand(args: RunArgs): Promise<number> {
       if (j.disagreements.length) console.log(`  disagreements (read these): ${j.disagreements.join(", ")}`);
       if (j.lowConfidence.length) console.log(`  low confidence: ${j.lowConfidence.join(", ")}`);
     }
+    if (report.flaky?.length) console.log(`flaky (passed some attempts, failed others): ${report.flaky.join(", ")}`);
     if (report.tools) {
       const calls = Object.entries(report.tools.calls).map(([n, k]) => `${n} ${k}`);
       console.log(`tools: ${report.tools.cases} of ${report.total} cases called a tool${calls.length ? ` (${calls.join(", ")})` : ""}`);
@@ -129,6 +144,7 @@ function summaryBox(ui: Ui, r: Report): string {
     );
   }
   lines.push(`${ui.pad("latency", 9)} ${ui.c.dim(`p50 ${r.latencyMs.p50 ?? "-"} ms · p90 ${r.latencyMs.p90 ?? "-"} ms`)}`);
+  if (r.flaky?.length) lines.push(...wrap(`${ui.pad("flaky", 9)} ${r.flaky.join(", ")}`, ui.width - 4).map((l) => ui.c.gold(l)));
   const read = [...(r.judge?.disagreements ?? []), ...(r.planted?.missed ?? [])];
   if (read.length) lines.push("", ...wrap(`read these: ${read.join(", ")}`, ui.width - 4).map((l) => ui.c.gold(l)));
   return ui.box(lines, r.passed === r.total ? "all passed" : `${r.total - r.passed} failed`);

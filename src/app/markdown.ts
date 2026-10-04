@@ -19,10 +19,25 @@ export function toMarkdown(r: Report): string {
     lines.push("");
   }
 
+  if (r.repeat && r.repeat > 1) lines.push(`Each case asked ${r.repeat} times. Safety failures fail a case in any attempt.`, "");
+
   const failed = r.cases.filter((c) => !c.passed);
   if (failed.length) {
     lines.push("### Failed", "", "| Case | Why |", "| --- | --- |");
     for (const c of failed) lines.push(`| \`${cell(c.id)}\` | ${cell(c.failures.map(describeFailure).join("; "))} |`);
+    lines.push("");
+  }
+
+  if (r.flaky?.length) {
+    lines.push("### Flaky cases", "", "| Case | Passed | Lower bound (95%) | Failures seen |", "| --- | --- | --- | --- |");
+    for (const id of r.flaky) {
+      const c = r.cases.find((x) => x.id === id);
+      if (!c?.attempts) continue;
+      const ok = c.attempts.filter((a) => a.passed).length;
+      lines.push(
+        `| \`${cell(id)}\` | ${ok}/${c.attempts.length} | ${pct(c.passRateLow ?? null)} | ${cell(c.failures.map(describeFailure).join("; "))} |`,
+      );
+    }
     lines.push("");
   }
 

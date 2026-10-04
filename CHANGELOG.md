@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - unreleased
+
+### Added
+
+- `repeat` (config, `RunOptions`) and `--repeat N`: each case is asked N times. Any safety failure in any attempt fails the case; usefulness failures are weighed against `minPassRate` (config or per case, default 1).
+- Per case: `attempts`, `passRate`, `passRateLow` (95% Wilson lower bound) and `firstPassed`; per report: `repeat` and `flaky`.
+- Flaky cases in the Markdown summary and the terminal (`4/5` next to the case).
+- `summarizeAttempts` and `wilsonLow` exported.
+
+### Changed
+
+- With `repeat > 1`, `passed` and `failures` of a case cover all attempts; the judge, its agreement and the blind review use the first attempt (`firstPassed`). With `repeat` 1 nothing changes.
+
 ## [0.3.0] - 2026-10-03
 
 ### Added

@@ -78,6 +78,15 @@ Campos (detalhes na [tabela em inglês](README.md#evaluating-agents)): `mustCall
 
 Três lições do primeiro agente avaliado com o noxeval: exija ferramenta só quando o contexto não responde (listas precisam, um fato que já está nos trechos não); use `toolArgsWhenCalled` em perguntas sobre um documento inteiro; e coloque o resultado das ferramentas em `context`, para o juiz avaliar a resposta contra o que as ferramentas devolveram. `failureKind(code)` separa falhas de segurança das de utilidade.
 
+## Variação
+
+Modelo não é determinístico: uma rodada diz "passou" ou "falhou", mas a verdade é uma taxa. `noxeval run --repeat 5` (ou `repeat: 5` na configuração) pergunta cada caso cinco vezes e decide por uma regra só:
+
+- **Falha de segurança em qualquer tentativa reprova o caso** (vazamento, link de fora, recusa que faltou, ferramenta proibida, limite de chamadas). Um vazamento em cinco respostas é problema de verdade, não ruído.
+- **Falhas de utilidade são comparadas com `minPassRate`** (na configuração ou no caso; padrão `1`, ou seja, todas as tentativas precisam passar). Use `0.8` num caso em que uma regra de estilo, como tamanho, escapa de vez em quando.
+
+O relatório traz, por caso, todas as tentativas, `passRate` e `passRateLow`: o limite inferior do intervalo de Wilson de 95%, que deixa uma amostra pequena honesta (5 de 5 só diz que a taxa real provavelmente passa de 57%). Casos que passaram em algumas tentativas e falharam em outras aparecem como `flaky`. O juiz e a correção às cegas usam só a primeira tentativa.
+
 ## Juízes
 
 ```js
