@@ -38,5 +38,8 @@ test("plain mode prints no escape codes and a one-line header", () => {
   const line = ui.caseLine({ id: "a", passed: false, ms: 5, judge: { pass: true }, failures: ["missing: x", "leak: y"] });
   assert.equal(line, stripAnsi(line));
   assert.match(line, /✗ a .* 5 ms .*judge ✓\n {4}├ missing: x\n {4}└ leak: y/);
+  // Tool calls (0.3) go between the case line and the reasons.
+  const withTools = ui.caseLine({ id: "b", passed: false, ms: 5, failures: ["tool-forbidden: send_email"], tools: ["send_email(to=hr)"] });
+  assert.match(withTools, /✗ b .*\n {4}tools: send_email\(to=hr\)\n {4}└ tool-forbidden: send_email/);
   assert.ok(createUi({ color: true }).banner("0.2.0", "x").includes("\x1b[38;2;139;108;255m█▄ █ █▀█ ▀▄▀"));
 });

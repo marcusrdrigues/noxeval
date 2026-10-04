@@ -3,6 +3,7 @@ import { CONFIG_NAMES, loadConfig, resolveInputs } from "../config.ts";
 import { toMarkdown } from "../app/markdown.ts";
 import { runEval } from "../app/run.ts";
 import { describeFailure } from "../domain/checks.ts";
+import { formatCall } from "../domain/trajectory.ts";
 import type { Report } from "../domain/report.ts";
 import { VERSION } from "../version.ts";
 import { colorEnabled, createUi, spinner, wrap, type Ui } from "./ui.ts";
@@ -53,11 +54,12 @@ export async function runCommand(args: RunArgs): Promise<number> {
     onCase: (r) => {
       finished++;
       live.clear();
-      if (ui.color) console.log(ui.caseLine({ ...r, failures: r.failures.map(describeFailure) }));
+      if (ui.color) console.log(ui.caseLine({ ...r, failures: r.failures.map(describeFailure), tools: r.toolCalls?.map(formatCall) }));
       else {
         const judged = r.judge ? ` judge:${r.judge.pass ? "pass" : "FAIL"}` : r.judgeError ? " judge:error" : "";
         const why = r.passed ? "" : `  ${r.failures.map(describeFailure).join("; ")}`;
-        console.log(`${r.passed ? "ok  " : "FAIL"}  ${r.id}${r.ms !== null ? ` ${r.ms}ms` : ""}${judged}${why}`);
+        const tools = r.toolCalls?.length ? ` tools:${r.toolCalls.map((t) => t.name).join(",")}` : "";
+        console.log(`${r.passed ? "ok  " : "FAIL"}  ${r.id}${r.ms !== null ? ` ${r.ms}ms` : ""}${judged}${tools}${why}`);
       }
       if (finished < cases.length) live.update(`${finished}/${cases.length} done`);
     },
@@ -83,6 +85,10 @@ export async function runCommand(args: RunArgs): Promise<number> {
       console.log(`judge agreed with the checks on ${Math.round((j.agreementWithChecker ?? 0) * 100)}% of ${j.evaluated} cases`);
       if (j.disagreements.length) console.log(`  disagreements (read these): ${j.disagreements.join(", ")}`);
       if (j.lowConfidence.length) console.log(`  low confidence: ${j.lowConfidence.join(", ")}`);
+    }
+    if (report.tools) {
+      const calls = Object.entries(report.tools.calls).map(([n, k]) => `${n} ${k}`);
+      console.log(`tools: ${report.tools.cases} of ${report.total} cases called a tool${calls.length ? ` (${calls.join(", ")})` : ""}`);
     }
     if (report.planted) {
       const p = report.planted;
@@ -111,6 +117,14 @@ function summaryBox(ui: Ui, r: Report): string {
         r.planted.caught,
         r.planted.total,
         `obvious ${d.obvious.caught}/${d.obvious.total} · subtle ${d.subtle.caught}/${d.subtle.total}`,
+      ),
+    );
+  }
+  if (r.tools) {
+    const calls = Object.entries(r.tools.calls).map(([n, k]) => `${n} ${k}`);
+    lines.push(
+      ...wrap(`${ui.pad("tools", 9)} ${r.tools.cases} cases${calls.length ? ` · ${calls.join(", ")}` : ""}`, ui.width - 4).map((l) =>
+        ui.c.dim(l),
       ),
     );
   }

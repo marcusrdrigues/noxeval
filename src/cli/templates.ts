@@ -10,6 +10,7 @@ export default defineConfig({
     url: "http://localhost:3000/api/chat",
     answerPath: "answer", // where the answer is in the JSON response
     contextPath: "context", // optional: what the model received (RAG passages), for the judge
+    // toolCallsPath: "toolCalls", // agents: the tool calls the app made, for trajectory checks (README, "Evaluating agents")
   }),
   cases: "./noxeval.cases.json",
 

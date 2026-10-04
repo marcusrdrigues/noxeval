@@ -1,4 +1,4 @@
-import type { EvalCase } from "./domain/case.ts";
+import type { EvalCase, ToolCall } from "./domain/case.ts";
 
 /**
  * The two seams of noxeval. Anything that answers a question is a Target; anything that grades an answer is a Judge.
@@ -9,6 +9,11 @@ export type TargetResponse = {
   answer: string;
   /** What the model received to answer (RAG passages, tool results). The judge checks the answer against it. */
   context?: string[];
+  /**
+   * Tool calls the app made, in order (0.3). Return [] when it called none: a missing field means "can't verify",
+   * and cases with trajectory checks then fail with `no-trajectory`.
+   */
+  toolCalls?: ToolCall[];
   /** Anything worth keeping in the report for this case (request id, model that answered...). */
   meta?: Record<string, string | number | boolean | null>;
 };

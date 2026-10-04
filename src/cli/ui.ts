@@ -93,13 +93,16 @@ export function createUi(options: { color: boolean; columns?: number }) {
       judge?: { pass: boolean } | null;
       judgeError?: string;
       failures: string[];
+      /** Tool calls already formatted (0.3), shown under the case line. */
+      tools?: string[];
     }): string {
       const mark = r.passed ? c.green("✓") : c.red("✗");
       const time = r.ms === null ? "" : c.dim(`${r.ms} ms`);
       const judged = r.judge ? `judge ${r.judge.pass ? c.green("✓") : c.red("✗")}` : r.judgeError ? c.gold("judge error") : "";
       const head = `  ${mark} ${pad(r.passed ? r.id : c.bold(r.id), 28)} ${pad(time, 9)} ${judged}`.trimEnd();
+      const tools = r.tools?.length ? [c.dim(`    tools: ${r.tools.join(" → ")}`)] : [];
       const why = r.failures.map((f, i) => c.dim(`    ${i === r.failures.length - 1 ? "└" : "├"} ${f}`));
-      return [head, ...why].join("\n");
+      return [head, ...tools, ...why].join("\n");
     },
     /** "label  ██████░░░░  4/5  80%" for the summary box. */
     meter(label: string, part: number, whole: number, note = ""): string {

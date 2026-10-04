@@ -1,4 +1,5 @@
 import { describeFailure } from "../domain/checks.ts";
+import { formatCall } from "../domain/trajectory.ts";
 import type { Report } from "../domain/report.ts";
 
 const pct = (v: number | null) => (v === null ? "n/a" : `${Math.round(v * 100)}%`);
@@ -23,6 +24,18 @@ export function toMarkdown(r: Report): string {
     lines.push("### Failed", "", "| Case | Why |", "| --- | --- |");
     for (const c of failed) lines.push(`| \`${cell(c.id)}\` | ${cell(c.failures.map(describeFailure).join("; "))} |`);
     lines.push("");
+  }
+
+  if (r.tools) {
+    const calls = Object.entries(r.tools.calls).sort((a, b) => b[1] - a[1]);
+    lines.push(`### Tools: ${r.tools.cases} of ${r.total} cases called a tool`, "");
+    if (calls.length) lines.push(calls.map(([name, n]) => `\`${cell(name)}\` ${n}`).join(" · "), "");
+    const traced = r.cases.filter((c) => c.toolCalls?.length);
+    if (traced.length) {
+      lines.push("| Case | Calls |", "| --- | --- |");
+      for (const c of traced) lines.push(`| \`${cell(c.id)}\` | ${cell((c.toolCalls ?? []).map(formatCall).join(" → "))} |`);
+      lines.push("");
+    }
   }
 
   if (r.judge) {

@@ -5,6 +5,12 @@
 
 export type Turn = { role: "user" | "assistant"; content: string };
 
+/** A scalar argument value a trajectory check compares (as a trimmed, case-insensitive string). */
+export type Scalar = string | number | boolean;
+
+/** One tool call the app made while answering, as the target reports it. */
+export type ToolCall = { name: string; args?: Record<string, unknown> };
+
 export type EvalCase = {
   /** Unique, stable id. Reports, planted errors and reviews refer to cases by id. */
   id: string;
@@ -27,6 +33,20 @@ export type EvalCase = {
   history?: Turn[];
   /** Free labels, e.g. OWASP risk ids ("LLM01"). Counted in the report. */
   tags?: string[];
+
+  // Trajectory checks (0.3): what the app did to answer, not only what it said. The target reports `toolCalls`.
+  /** At least one of these tools was called. Use only when the context alone can't answer (lists, whole documents). */
+  mustCallTool?: string[];
+  /** No tool was called at all. */
+  mustNotCallTools?: boolean;
+  /** None of these tools was called (e.g. `send_email` on an injection case). A safety failure. */
+  forbiddenTools?: string[];
+  /** Some call has all these arguments. */
+  toolArgs?: Record<string, Scalar>;
+  /** Every call to the named tool has these arguments; not calling it at all is fine. */
+  toolArgsWhenCalled?: Record<string, Record<string, Scalar>>;
+  /** At most this many tool calls. A safety failure (runaway loops cost money). */
+  maxToolCalls?: number;
 };
 
 export type CaseFile = {
@@ -59,6 +79,48 @@ export class CaseFileError extends Error {
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const isStringArray = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string");
+
+const isScalar = (v: unknown): v is Scalar => typeof v === "string" || typeof v === "number" || typeof v === "boolean";
+const isScalarMap = (v: unknown): v is Record<string, Scalar> =>
+  isObject(v) && Object.keys(v).length > 0 && Object.values(v).every(isScalar);
+
+/** Problems in the trajectory fields of one case (0.3). */
+function trajectoryProblems(c: Record<string, unknown>, at: string): string[] {
+  const out: string[] = [];
+  for (const key of ["mustCallTool", "forbiddenTools"] as const)
+    if (c[key] !== undefined && !(isStringArray(c[key]) && c[key].length > 0))
+      out.push(`${at}: "${key}" must be a non-empty array of tool names`);
+  if (c.mustNotCallTools !== undefined && typeof c.mustNotCallTools !== "boolean")
+    out.push(`${at}: "mustNotCallTools" must be true or false`);
+  if (c.mustNotCallTools === true && (c.mustCallTool !== undefined || c.toolArgs !== undefined))
+    out.push(`${at}: "mustNotCallTools" contradicts "mustCallTool" and "toolArgs"`);
+  if (c.toolArgs !== undefined && !isScalarMap(c.toolArgs))
+    out.push(`${at}: "toolArgs" must be an object of { argument: string | number | boolean }`);
+  if (
+    c.toolArgsWhenCalled !== undefined &&
+    !(
+      isObject(c.toolArgsWhenCalled) &&
+      Object.keys(c.toolArgsWhenCalled).length > 0 &&
+      Object.values(c.toolArgsWhenCalled).every(isScalarMap)
+    )
+  )
+    out.push(`${at}: "toolArgsWhenCalled" must be an object of { tool: { argument: string | number | boolean } }`);
+  if (c.maxToolCalls !== undefined && !(Number.isInteger(c.maxToolCalls) && (c.maxToolCalls as number) >= 0))
+    out.push(`${at}: "maxToolCalls" must be a whole number, 0 or more`);
+  return out;
+}
+
+/** True when the case checks the trajectory, so the target must report its tool calls. */
+export function hasTrajectoryChecks(c: EvalCase): boolean {
+  return (
+    c.mustCallTool !== undefined ||
+    c.mustNotCallTools !== undefined ||
+    c.forbiddenTools !== undefined ||
+    c.toolArgs !== undefined ||
+    c.toolArgsWhenCalled !== undefined ||
+    c.maxToolCalls !== undefined
+  );
+}
 
 /** Validates a case file (already parsed from JSON). Throws CaseFileError listing every problem. */
 export function parseCaseFile(raw: unknown, file = "cases"): CaseFile {
@@ -109,6 +171,7 @@ export function parseCaseFile(raw: unknown, file = "cases"): CaseFile {
       )
     )
       problems.push(`${at}: "history" must be an array of { role: "user" | "assistant", content: string }`);
+    problems.push(...trajectoryProblems(c, at));
     cases.push(c as EvalCase);
   });
   if (cases.length === 0) problems.push("no cases");

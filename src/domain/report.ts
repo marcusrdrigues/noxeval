@@ -1,4 +1,4 @@
-import type { Difficulty } from "./case.ts";
+import type { Difficulty, ToolCall } from "./case.ts";
 import type { Failure } from "./checks.ts";
 import type { JudgeVerdict } from "../ports.ts";
 import { percentile, type AgreementStats } from "./agreement.ts";
@@ -18,6 +18,8 @@ export type CaseResult = {
   contextSize: number;
   ms: number | null;
   meta?: Record<string, string | number | boolean | null>;
+  /** Tool calls the app reported for this case (0.3). */
+  toolCalls?: ToolCall[];
   judge?: JudgeVerdict | null;
   judgeError?: string;
 };
@@ -78,6 +80,8 @@ export type Report = {
   latencyMs: { p50: number | null; p90: number | null };
   judge: JudgeSummary | null;
   planted: PlantedSummary | null;
+  /** Tool calls across the run (0.3): count per tool and how many cases called any. Null when no case reported calls. */
+  tools?: ToolsSummary | null;
   /** Last blind review of this run, written by `noxeval review`. */
   human: HumanCheck | null;
   cases: CaseResult[];
@@ -126,6 +130,16 @@ export function summarizePlanted(results: PlantedResult[]): PlantedSummary | nul
   };
 }
 
+export type ToolsSummary = { calls: Record<string, number>; cases: number };
+
+export function summarizeTools(results: CaseResult[]): ToolsSummary | null {
+  const reported = results.filter((r) => r.toolCalls !== undefined);
+  if (reported.length === 0) return null;
+  const calls: Record<string, number> = {};
+  for (const r of reported) for (const c of r.toolCalls ?? []) calls[c.name] = (calls[c.name] ?? 0) + 1;
+  return { calls, cases: reported.filter((r) => (r.toolCalls ?? []).length > 0).length };
+}
+
 export function buildReport(input: {
   version: string;
   runAt: string;
@@ -146,6 +160,7 @@ export function buildReport(input: {
     latencyMs: { p50: percentile(ms, 0.5), p90: percentile(ms, 0.9) },
     judge: input.judgeName ? summarizeJudge(input.judgeName, input.cases) : null,
     planted: summarizePlanted(input.planted),
+    tools: summarizeTools(input.cases),
     human: null,
     cases: input.cases,
   };

@@ -64,8 +64,19 @@ O arquivo de casos é JSON: frases de recusa por idioma e a lista de casos. Os c
 
 ## Alvos
 
-- `httpTarget({ url, answerPath?, contextPath?, headers?, body?, timeoutMs? })` faz POST de `{ question, locale, history }` (ou do seu `body(case)`) e lê a resposta num caminho do JSON, ou o corpo inteiro como texto. `contextPath` lê o que o modelo recebeu, que o juiz usa.
-- `functionTarget(nome, async (c) => ({ answer, context }))` para o resto: stream, SDK, chamada direta no mesmo processo.
+- `httpTarget({ url, answerPath?, contextPath?, toolCallsPath?, headers?, body?, timeoutMs? })` faz POST de `{ question, locale, history }` (ou do seu `body(case)`) e lê a resposta num caminho do JSON, ou o corpo inteiro como texto. `contextPath` lê o que o modelo recebeu, que o juiz usa.
+- `functionTarget(nome, async (c) => ({ answer, context, toolCalls }))` para o resto: stream, SDK, chamada direta no mesmo processo.
+- `toolCallsPath` / `toolCalls`: as chamadas de ferramenta de um agente, para as [verificações de trajetória](#avaliando-agentes).
+
+## Avaliando agentes
+
+Um app com ferramentas pode acertar a resposta pelo caminho errado: chamar uma ferramenta que não devia, chamar a certa com o argumento errado, ou pular a ferramenta e responder com contexto incompleto. As verificações de trajetória olham as chamadas que o app fez, junto das verificações da resposta.
+
+O alvo informa as chamadas: `httpTarget({ ..., toolCallsPath: "toolCalls" })` lê `{ name, args }`, `{ name, arguments }` ou o formato da OpenAI `{ function: { name, arguments } }`; um `functionTarget` devolve `toolCalls`. Devolva `[]` quando nenhuma ferramenta foi chamada: campo ausente quer dizer "não dá para conferir", e o caso falha com `no-trajectory` em vez de passar sem conferência.
+
+Campos (detalhes na [tabela em inglês](README.md#evaluating-agents)): `mustCallTool`, `mustNotCallTools`, `forbiddenTools` (falha de segurança), `toolArgs`, `toolArgsWhenCalled` (se chamou, foi com estes argumentos) e `maxToolCalls` (falha de segurança).
+
+Três lições do primeiro agente avaliado com o noxeval: exija ferramenta só quando o contexto não responde (listas precisam, um fato que já está nos trechos não); use `toolArgsWhenCalled` em perguntas sobre um documento inteiro; e coloque o resultado das ferramentas em `context`, para o juiz avaliar a resposta contra o que as ferramentas devolveram. `failureKind(code)` separa falhas de segurança das de utilidade.
 
 ## Juízes
 

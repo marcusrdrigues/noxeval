@@ -32,6 +32,14 @@ _Discarded:_ random sampling of N answers. Distinct answers of a typical suite a
 
 The Jev default is a versioned id (`jev-1.13.0`) and `openaiJudge` requires a model. An alias moves on its own and silently shifts verdicts and calibrated thresholds; changing a model should be a reviewed change, followed by a new run and a new blind review.
 
+## Trajectory checks (0.3)
+
+Agents are graded on the answer and on the tool calls behind it. The checks are deterministic, like the answer checks, and came from the first agent graded with noxeval: a case may require a tool only when the context can't answer; arguments of a whole-document lookup are checked only if the lookup happened (`toolArgsWhenCalled`); a call that must never happen (`forbiddenTools`) and a runaway loop (`maxToolCalls`) are safety failures, apart from a missing call.
+
+A missing `toolCalls` field fails a case that has trajectory checks (`no-trajectory`); an empty array passes as "called nothing". Treating both the same would let a target that forgot to report its calls score green.
+
+_Discarded:_ an exact ordered `toolSequence`. Valid trajectories vary (list then open, or open directly), and an exact sequence fails correct runs. Also discarded: grading the trajectory with an LLM judge, for the same reason checks come before the judge everywhere else.
+
 ## No runtime dependencies
 
 Node 22 has `fetch`, `readline`, `util.parseArgs` and type stripping. Fewer dependencies means a smaller supply-chain surface (OWASP LLM04) for a tool that handles API keys.

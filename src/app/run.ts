@@ -1,5 +1,6 @@
 import type { EvalCase, PlantedError } from "../domain/case.ts";
 import { check, type CheckOptions } from "../domain/checks.ts";
+import { checkTrajectory } from "../domain/trajectory.ts";
 import { buildReport, type CaseResult, type PlantedResult, type Report } from "../domain/report.ts";
 import type { Judge, Target } from "../ports.ts";
 import { VERSION } from "../version.ts";
@@ -57,7 +58,7 @@ export async function runEval(o: RunOptions): Promise<Report> {
       const ms = Math.round(performance.now() - t0);
       const context = r.context ?? [];
       contexts.set(c.id, context);
-      const failures = check(c, r.answer, o.checks);
+      const failures = [...check(c, r.answer, o.checks), ...checkTrajectory(c, r.toolCalls)];
       result = {
         ...base,
         passed: failures.length === 0,
@@ -65,6 +66,7 @@ export async function runEval(o: RunOptions): Promise<Report> {
         answer: r.answer,
         contextSize: context.length,
         ms,
+        ...(r.toolCalls ? { toolCalls: r.toolCalls } : {}),
         ...(r.meta ? { meta: r.meta } : {}),
       };
       if (o.judge) {

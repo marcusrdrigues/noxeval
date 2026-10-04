@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - unreleased
+
+### Added
+
+- Trajectory checks for agents: `mustCallTool`, `mustNotCallTools`, `forbiddenTools`, `toolArgs`, `toolArgsWhenCalled` and `maxToolCalls` in the case file, with the failure codes `tool-missing`, `tool-unexpected`, `tool-forbidden`, `tool-args` and `tool-limit`.
+- `no-trajectory`: a case with trajectory checks fails when the target reports no `toolCalls`, instead of passing unverified.
+- `TargetResponse.toolCalls` and `httpTarget({ toolCallsPath })`, reading `{ name, args }`, `{ name, arguments }` and the OpenAI `{ function: { name, arguments } }` shape.
+- `failureKind(code)`: "safety" or "usefulness".
+- Tool calls in the report (`tools` summary, `toolCalls` per case), the Markdown summary and the terminal.
+- `checkTrajectory`, `formatCall`, `asToolCall` and `hasTrajectoryChecks` exported for programmatic use.
+
 ## [0.2.0] - 2026-10-03
 
 ### Added

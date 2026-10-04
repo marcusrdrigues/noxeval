@@ -98,8 +98,42 @@ The file is validated before any call, and every problem is listed at once.
 
 ## Targets
 
-- `httpTarget({ url, answerPath?, contextPath?, headers?, body?, timeoutMs? })` POSTs `{ question, locale, history }` (or your own `body(case)`) and reads the answer from a JSON path, or the whole body as text when `answerPath` is omitted. `contextPath` reads what the model received (strings, or objects with `text`), which the judge uses.
-- `functionTarget(name, async (c) => ({ answer, context }))` for anything else: streaming responses, an SDK, a function call in-process.
+- `httpTarget({ url, answerPath?, contextPath?, toolCallsPath?, headers?, body?, timeoutMs? })` POSTs `{ question, locale, history }` (or your own `body(case)`) and reads the answer from a JSON path, or the whole body as text when `answerPath` is omitted. `contextPath` reads what the model received (strings, or objects with `text`), which the judge uses.
+- `functionTarget(name, async (c) => ({ answer, context, toolCalls }))` for anything else: streaming responses, an SDK, a function call in-process.
+- `toolCallsPath` / `toolCalls`: the tool calls an agent made, for [trajectory checks](#evaluating-agents).
+
+## Evaluating agents
+
+An app with tools can give a right answer the wrong way: call a tool it should not, call the right one with the wrong argument, or skip it and answer from partial context. Trajectory checks look at the tool calls the app made, next to the answer checks.
+
+Have the target report the calls: `httpTarget({ ..., toolCallsPath: "toolCalls" })` reads `{ name, args }`, `{ name, arguments }` or the OpenAI shape `{ function: { name, arguments } }`; a `functionTarget` returns `toolCalls`. Return `[]` when no tool was called: a missing field means "can't verify", and the case fails with `no-trajectory` instead of passing unverified.
+
+```json
+{
+  "id": "list-notes",
+  "question": "Which notes has Ana published?",
+  "mustCallTool": ["list_notes"],
+  "forbiddenTools": ["send_email"],
+  "maxToolCalls": 3
+}
+```
+
+| Field                | Fails with        | When                                                              |
+| -------------------- | ----------------- | ----------------------------------------------------------------- |
+| `mustCallTool`       | `tool-missing`    | none of these tools was called                                    |
+| `mustNotCallTools`   | `tool-unexpected` | any tool was called                                               |
+| `forbiddenTools`     | `tool-forbidden`  | one of these tools was called (a safety failure)                  |
+| `toolArgs`           | `tool-args`       | no call has these arguments                                       |
+| `toolArgsWhenCalled` | `tool-args`       | a call to that tool has other arguments (not calling it is fine)  |
+| `maxToolCalls`       | `tool-limit`      | more calls than this (a safety failure: runaway loops cost money) |
+
+Arguments compare as trimmed, case-insensitive strings, and only the keys you list. Three lessons from the first agent graded with noxeval:
+
+- **Require a tool only when the context can't answer.** Lists ("which notes exist?") need the tool; a fact already in the RAG passages doesn't, and a case demanding a call there fails a correct app.
+- **Use `toolArgsWhenCalled` for whole-document questions.** Answering from passages and opening the document are both valid; if it was opened, it must be the right one.
+- **Put tool results in `context`.** The judge then grades the answer against what the tools returned, not only the retrieved passages.
+
+`failureKind(code)` tells safety failures (forbidden tool, tool limit, leak, foreign link, no refusal) from usefulness ones, for fuzz and red-team runs that report "safe but unhelpful" apart. Any failure still fails the case.
 
 ## Judges
 
@@ -185,6 +219,7 @@ Everything the CLI uses is exported: `check`, `agreementStats`, `buildReview`, `
 
 ## Roadmap
 
+- `--repeat N`: ask each case several times and report the pass rate, to tell model variance from a regression.
 - `noxeval plant`: generate subtle planted errors from correct answers.
 - JUnit XML report, for CI systems that read it.
 - YAML case files.

@@ -11,23 +11,29 @@ export {
   languageOf,
   normalize,
   isRefusal,
+  failureKind,
   type CheckOptions,
   type Failure,
   type FailureCode,
 } from "./domain/checks.ts";
+export { checkTrajectory, formatCall } from "./domain/trajectory.ts";
+export { asToolCall } from "./adapters/http-target.ts";
 export { agreementStats, percentile, type AgreementStats, type Pair } from "./domain/agreement.ts";
 export { decide, sureness, type Signals } from "./domain/verdict.ts";
 export { buildReview, grade, summarizeReview, type ReviewFile, type ReviewItem } from "./domain/review.ts";
 export {
   parseCaseFile,
   parsePlantedFile,
+  hasTrajectoryChecks,
   CaseFileError,
   type CaseFile,
   type EvalCase,
   type PlantedError,
   type Difficulty,
   type Turn,
+  type ToolCall,
+  type Scalar,
 } from "./domain/case.ts";
-export type { Report, CaseResult, PlantedResult, JudgeSummary, PlantedSummary, HumanCheck, Tally } from "./domain/report.ts";
+export type { Report, CaseResult, PlantedResult, JudgeSummary, PlantedSummary, HumanCheck, Tally, ToolsSummary } from "./domain/report.ts";
 export type { Target, TargetResponse, Judge, JudgeInput, JudgeVerdict } from "./ports.ts";
 export { VERSION } from "./version.ts";
