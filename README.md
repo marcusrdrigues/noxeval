@@ -146,6 +146,31 @@ The report adds, per case, every attempt, `passRate` and `passRateLow`: the lowe
 
 The judge and the blind review use the first attempt only: they check the checks, they don't measure variance, and grading N answers per case would multiply cost and work. `summarizeAttempts` and `wilsonLow` are exported for apps with their own runner.
 
+## Ungrounded details
+
+For a RAG app, the most expensive mistake is a fact the model made up: a year, an amount, a company that isn't in your content. `noxeval run --grounding report` (or `checks: { grounding: "report" }`) checks every **number, acronym and proper name** of each answer against the context your target returned (`contextPath` in `httpTarget`). No model is involved: it is a rule, cheap and explainable.
+
+```js
+checks: {
+  grounding: "report",                              // "off" (default), "report" or "check"
+  groundingAllow: ["Ava", "Example Books"],          // names the answer may always say
+}
+```
+
+- **`report`** measures without failing any case. Start here: read the flagged answers before trusting the rule.
+- **`check`** fails the case with `ungrounded`, a usefulness failure (with `--repeat`, weighed against `minPassRate`).
+- A case can skip the check with `"grounding": false` (a refusal has nothing to ground).
+- An answer whose target returned no context is reported as **not checked**, never as grounded.
+
+The rules came from running this on a real assistant ([Nox](https://marcusrdrigues.com/nox)):
+
+- "10 mil", "10.000", "10,000" and "dez mil" are the same number; "BM25" and "v1.2" are identifiers, not numbers.
+- A detail from the question passes only in a sentence that denies it ("I didn't find a prize in 2024"): that is how a question's bait becomes a fact.
+- Date arithmetic in plain sight is not invention: "joined in 2023, moved in 2026, 3 years later" passes when both years are in the context. "3 projects" does not.
+- Names on the allow list split their neighbors ("Python Marcus" is "Python").
+
+It checks details, not meaning: "worked at" becoming "led" passes. That is the judge's job. `extractDetails` and `ungroundedDetails` are exported for apps that check at runtime.
+
 ## Judges
 
 ```js
@@ -226,7 +251,7 @@ const report = await runEval({ target: httpTarget({ url, answerPath: "answer" })
 console.log(toMarkdown(report));
 ```
 
-Everything the CLI uses is exported: `check`, `agreementStats`, `buildReview`, `summarizeReview`, `parseCaseFile` and the types.
+Everything the CLI uses is exported: `check`, `ungroundedDetails`, `agreementStats`, `buildReview`, `summarizeReview`, `parseCaseFile` and the types.
 
 ## Roadmap
 

@@ -53,6 +53,9 @@ export type EvalCase = {
    * failures ignore it: one in any attempt fails the case.
    */
   minPassRate?: number;
+
+  /** Set to false to skip the ungrounded-detail check on this case (0.5), e.g. a refusal with nothing to ground. */
+  grounding?: false;
 };
 
 export type CaseFile = {
@@ -180,6 +183,7 @@ export function parseCaseFile(raw: unknown, file = "cases"): CaseFile {
     problems.push(...trajectoryProblems(c, at));
     if (c.minPassRate !== undefined && !(typeof c.minPassRate === "number" && c.minPassRate >= 0 && c.minPassRate <= 1))
       problems.push(`${at}: "minPassRate" must be a number from 0 to 1`);
+    if (c.grounding !== undefined && c.grounding !== false) problems.push(`${at}: "grounding" can only be false (to skip the check)`);
     cases.push(c as EvalCase);
   });
   if (cases.length === 0) problems.push("no cases");

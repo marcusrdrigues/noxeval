@@ -41,6 +41,17 @@ export function toMarkdown(r: Report): string {
     lines.push("");
   }
 
+  if (r.grounding) {
+    const g = r.grounding;
+    lines.push(`### Ungrounded details: ${g.withUngrounded} of ${g.checked} answers (${g.mode})`, "");
+    if (g.cases.length) {
+      lines.push("| Case | Not in the context |", "| --- | --- |");
+      for (const c of g.cases) lines.push(`| \`${cell(c.id)}\` | ${cell(c.details.join(", "))} |`);
+      lines.push("");
+    }
+    if (g.notChecked) lines.push(`${g.notChecked} answers not checked: the target returned no context.`, "");
+  }
+
   if (r.tools) {
     const calls = Object.entries(r.tools.calls).sort((a, b) => b[1] - a[1]);
     lines.push(`### Tools: ${r.tools.cases} of ${r.total} cases called a tool`, "");

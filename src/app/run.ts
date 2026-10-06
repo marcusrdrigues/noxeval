@@ -2,6 +2,7 @@ import type { EvalCase, PlantedError } from "../domain/case.ts";
 import { summarizeAttempts, type Attempt } from "../domain/variance.ts";
 import { check, type CheckOptions } from "../domain/checks.ts";
 import { checkTrajectory } from "../domain/trajectory.ts";
+import { ungroundedDetails } from "../domain/grounding.ts";
 import { buildReport, type CaseResult, type PlantedResult, type Report } from "../domain/report.ts";
 import type { Judge, Target } from "../ports.ts";
 import { VERSION } from "../version.ts";
@@ -54,14 +55,32 @@ export async function runEval(o: RunOptions): Promise<Report> {
   let inFlight = 0;
 
   const repeat = Math.max(1, Math.floor(o.repeat ?? 1));
+  const groundingMode = o.checks?.grounding ?? "off";
+
+  /** Ungrounded details of one answer (0.5); null when the case skips the check or the target sent no context. */
+  function grounding(c: EvalCase, answer: string, context: string[] | undefined) {
+    if (groundingMode === "off" || c.grounding === false) return undefined;
+    if (!context) return { checked: false, details: [] as string[] };
+    const allow = o.checks?.groundingAllow;
+    const details = ungroundedDetails(answer, context, { question: c.question, ...(allow ? { allow } : {}) }).map((d) => d.text);
+    return { checked: true, details: [...new Set(details)] };
+  }
 
   /** One ask of one case: answer checks and trajectory checks. A failing target becomes an "error" failure. */
   async function attempt(c: EvalCase) {
     const t0 = performance.now();
     try {
       const r = await o.target.ask(c);
-      const failures = [...check(c, r.answer, o.checks), ...checkTrajectory(c, r.toolCalls)];
-      return { ok: true as const, r, ms: Math.round(performance.now() - t0), failures };
+      const g = grounding(c, r.answer, r.context);
+      const failures = [
+        ...check(c, r.answer, o.checks),
+        ...checkTrajectory(c, r.toolCalls),
+        // In "check" mode, an ungrounded detail fails the attempt; in "report" mode it is only recorded.
+        ...(groundingMode === "check" && g?.checked && g.details.length
+          ? [{ code: "ungrounded" as const, detail: g.details.join(", ") }]
+          : []),
+      ];
+      return { ok: true as const, r, ms: Math.round(performance.now() - t0), failures, grounding: g };
     } catch (err) {
       return { ok: false as const, error: message(err) };
     }
@@ -85,6 +104,7 @@ export async function runEval(o: RunOptions): Promise<Report> {
         ms,
         ...(r.toolCalls ? { toolCalls: r.toolCalls } : {}),
         ...(r.meta ? { meta: r.meta } : {}),
+        ...(first.grounding ? { grounding: first.grounding } : {}),
       };
       // The judge grades the first attempt only: it checks the checks, it doesn't measure variance (0.4).
       if (o.judge) {
@@ -164,5 +184,14 @@ export async function runEval(o: RunOptions): Promise<Report> {
     }
   }
 
-  return buildReport({ version: VERSION, runAt, target: o.target.name, judgeName: o.judge?.name ?? null, cases: results, planted, repeat });
+  return buildReport({
+    version: VERSION,
+    runAt,
+    target: o.target.name,
+    judgeName: o.judge?.name ?? null,
+    cases: results,
+    planted,
+    repeat,
+    grounding: groundingMode,
+  });
 }

@@ -18,6 +18,7 @@ run options:
       --markdown <file>             also write a Markdown summary
       --only <id,id>                run only these case ids
       --repeat <n>                  ask each case n times and report pass rates
+      --grounding <mode>            off, report or check: numbers and names must be in the context
       --no-judge                    skip the judge and planted errors
 
 review options:
@@ -39,6 +40,7 @@ async function main(argv: string[]): Promise<number> {
       markdown: { type: "string" },
       only: { type: "string" },
       repeat: { type: "string" },
+      grounding: { type: "string" },
       "no-judge": { type: "boolean" },
       report: { type: "string", short: "r" },
       file: { type: "string", short: "f" },
@@ -67,6 +69,7 @@ async function main(argv: string[]): Promise<number> {
         markdown: values.markdown,
         only: values.only,
         repeat: values.repeat,
+        grounding: values.grounding,
         noJudge: values["no-judge"] === true,
       });
     case "review":

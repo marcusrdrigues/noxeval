@@ -18,6 +18,22 @@ export {
 } from "./domain/checks.ts";
 export { checkTrajectory, formatCall } from "./domain/trajectory.ts";
 export { summarizeAttempts, wilsonLow, type Attempt, type AttemptsSummary } from "./domain/variance.ts";
+export {
+  canonicalNumber,
+  extractDetails,
+  groundedYears,
+  indexContext,
+  isGrounded,
+  normalizeText,
+  numberSet,
+  splitSentences,
+  ungroundedDetails,
+  type ContextIndex,
+  type Detail,
+  type DetailKind,
+  type DetailOptions,
+  type GroundingOptions,
+} from "./domain/grounding.ts";
 export { asToolCall } from "./adapters/http-target.ts";
 export { agreementStats, percentile, type AgreementStats, type Pair } from "./domain/agreement.ts";
 export { decide, sureness, type Signals } from "./domain/verdict.ts";
@@ -35,6 +51,16 @@ export {
   type ToolCall,
   type Scalar,
 } from "./domain/case.ts";
-export type { Report, CaseResult, PlantedResult, JudgeSummary, PlantedSummary, HumanCheck, Tally, ToolsSummary } from "./domain/report.ts";
+export type {
+  Report,
+  CaseResult,
+  PlantedResult,
+  JudgeSummary,
+  PlantedSummary,
+  HumanCheck,
+  Tally,
+  ToolsSummary,
+  GroundingSummary,
+} from "./domain/report.ts";
 export type { Target, TargetResponse, Judge, JudgeInput, JudgeVerdict } from "./ports.ts";
 export { VERSION } from "./version.ts";

@@ -28,6 +28,11 @@ export type CaseResult = {
   passRateLow?: number;
   judge?: JudgeVerdict | null;
   judgeError?: string;
+  /**
+   * Ungrounded details of the first attempt (0.5), when grounding is on. `checked` is false when the target returned
+   * no context: never read that as grounded.
+   */
+  grounding?: { checked: boolean; details: string[] };
 };
 
 export type PlantedResult = {
@@ -94,6 +99,8 @@ export type Report = {
   repeat?: number;
   /** Cases that passed some attempts and failed others (0.4). */
   flaky?: string[];
+  /** Ungrounded details (0.5); absent when grounding is off. */
+  grounding?: GroundingSummary;
   cases: CaseResult[];
 };
 
@@ -144,6 +151,29 @@ export function summarizePlanted(results: PlantedResult[]): PlantedSummary | nul
 
 export type ToolsSummary = { calls: Record<string, number>; cases: number };
 
+/** Ungrounded details across the run (0.5). */
+export type GroundingSummary = {
+  mode: "report" | "check";
+  /** Answers checked: grounding on for the case and context returned. */
+  checked: number;
+  /** Answers not checked because the target returned no context. */
+  notChecked: number;
+  withUngrounded: number;
+  cases: { id: string; details: string[] }[];
+};
+
+export function summarizeGrounding(mode: "report" | "check", results: CaseResult[]): GroundingSummary {
+  const on = results.filter((r) => r.grounding);
+  const flagged = on.filter((r) => r.grounding?.checked && r.grounding.details.length > 0);
+  return {
+    mode,
+    checked: on.filter((r) => r.grounding?.checked).length,
+    notChecked: on.filter((r) => !r.grounding?.checked).length,
+    withUngrounded: flagged.length,
+    cases: flagged.map((r) => ({ id: r.id, details: r.grounding?.details ?? [] })),
+  };
+}
+
 export function summarizeTools(results: CaseResult[]): ToolsSummary | null {
   const reported = results.filter((r) => r.toolCalls !== undefined);
   if (reported.length === 0) return null;
@@ -160,6 +190,7 @@ export function buildReport(input: {
   cases: CaseResult[];
   planted: PlantedResult[];
   repeat?: number;
+  grounding?: "off" | "report" | "check";
 }): Report {
   // Latency over every attempt: more samples, same meaning.
   const ms = input.cases
@@ -182,6 +213,7 @@ export function buildReport(input: {
     ...(repeat > 1
       ? { repeat, flaky: input.cases.filter((r) => r.passRate !== undefined && r.passRate > 0 && r.passRate < 1).map((r) => r.id) }
       : {}),
+    ...(input.grounding && input.grounding !== "off" ? { grounding: summarizeGrounding(input.grounding, input.cases) } : {}),
     cases: input.cases,
   };
 }

@@ -87,6 +87,17 @@ Modelo não é determinístico: uma rodada diz "passou" ou "falhou", mas a verda
 
 O relatório traz, por caso, todas as tentativas, `passRate` e `passRateLow`: o limite inferior do intervalo de Wilson de 95%, que deixa uma amostra pequena honesta (5 de 5 só diz que a taxa real provavelmente passa de 57%). Casos que passaram em algumas tentativas e falharam em outras aparecem como `flaky`. O juiz e a correção às cegas usam só a primeira tentativa.
 
+## Detalhe sem fonte
+
+Num app com RAG, o erro mais caro é um fato que o modelo inventou: um ano, um valor, uma empresa que não está no seu conteúdo. `noxeval run --grounding report` (ou `checks: { grounding: "report" }`) confere cada **número, sigla e nome próprio** da resposta contra o contexto que o alvo devolveu (`contextPath` no `httpTarget`). Sem modelo: é uma regra, barata e explicável.
+
+- **`report`** só mede, sem reprovar caso. Comece por ele e leia as respostas marcadas antes de confiar na regra.
+- **`check`** reprova o caso com `ungrounded`, uma falha de utilidade (com `--repeat`, comparada com `minPassRate`).
+- `groundingAllow` lista os nomes que a resposta sempre pode dizer (o do assistente, o da pessoa ou empresa do app). Um caso pode pular a checagem com `"grounding": false`.
+- Resposta sem contexto aparece como **não conferida**, nunca como sustentada.
+
+As regras vieram de rodar isso num assistente de verdade (o [Nox](https://marcusrdrigues.com/nox)): "10 mil", "10.000" e "dez mil" são o mesmo número; o detalhe da pergunta só passa numa frase que nega; e conta com datas à vista não é invenção ("entrou em 2023, saiu em 2026, 3 anos depois"). Confere detalhe, não sentido: "trabalhou" virando "liderou" passa, e isso é trabalho do juiz.
+
 ## Juízes
 
 ```js

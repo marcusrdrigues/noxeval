@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-10-06
+
+### Added
+
+- Ungrounded details: `checks.grounding` (`"off"`, `"report"` or `"check"`) and `--grounding`. Every number, acronym and proper name of an answer must be in the context the target returned. `report` measures; `check` fails the case with `ungrounded`, a usefulness failure. `checks.groundingAllow` lists names the answer may always say; a case skips the check with `"grounding": false`.
+- The rules learned on Nox: number spellings ("10 mil", "10.000", "dez mil"), identifiers that aren't numbers, the question's bait passing only in a denial, and date arithmetic in plain sight ("3 years later" between two grounded years).
+- `grounding` per case and in the report (checked, not checked, answers with ungrounded details), a Markdown table and a terminal line.
+- `extractDetails`, `ungroundedDetails`, `canonicalNumber`, `numberSet`, `splitSentences`, `isGrounded`, `indexContext` and `groundedYears` exported.
+
 ## [0.4.0] - 2026-10-04
 
 ### Added

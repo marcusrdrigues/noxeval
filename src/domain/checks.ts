@@ -23,7 +23,9 @@ export type FailureCode =
   | "tool-forbidden"
   | "tool-args"
   | "tool-limit"
-  | "no-trajectory";
+  | "no-trajectory"
+  // Grounding (0.5), with `grounding: "check"`: a number, acronym or name that is in no context item.
+  | "ungrounded";
 
 export type Failure = { code: FailureCode; detail: string };
 
@@ -41,6 +43,14 @@ export type CheckOptions = {
   maxLength?: number;
   /** Check the answer language for "pt" and "en" cases. Default true. */
   checkLanguage?: boolean;
+  /**
+   * Ungrounded details (0.5): every number, acronym and proper name of the answer must be in the context the target
+   * returned. "off" (default) skips it; "report" measures without failing any case; "check" fails the case with
+   * `ungrounded`, a usefulness failure. Needs `TargetResponse.context`.
+   */
+  grounding?: "off" | "report" | "check";
+  /** Names the answer may always say (the assistant's name, the person or company the app is about, its channels). */
+  groundingAllow?: string[];
 };
 
 /**
