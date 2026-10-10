@@ -9,7 +9,7 @@ export default tseslint.config(
   {
     // Plain .mjs files run on Node: declare the few globals they use (TypeScript files get them from @types/node).
     files: ["**/*.mjs"],
-    languageOptions: { globals: { process: "readonly", console: "readonly" } },
+    languageOptions: { globals: { process: "readonly", console: "readonly", URL: "readonly" } },
   },
   {
     rules: {

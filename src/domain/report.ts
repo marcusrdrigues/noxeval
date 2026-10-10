@@ -107,6 +107,8 @@ export type Report = {
   flaky?: string[];
   /** Ungrounded details (0.5); absent when grounding is off. */
   grounding?: GroundingSummary;
+  /** What the target noted before the run (0.6), e.g. ids in a recorded-answers file that match no case. */
+  notes?: string[];
   /** Only some cases ran (`--only`, 0.6). A partial report can't become the baseline. */
   partial?: true;
   /** This run compared with the accepted baseline (0.6), when there is one. */

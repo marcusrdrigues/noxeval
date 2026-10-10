@@ -1,0 +1,33 @@
+{
+  "refusalPatterns": {
+    "en": ["I only answer consumer-law questions"]
+  },
+  "cases": [
+    {
+      "id": "faulty-product",
+      "category": "fact",
+      "locale": "en",
+      "question": "The blender I bought broke in a week. Can the store refuse to fix it?",
+      "expect": "Says the store must repair it within 30 days, citing the warranty article.",
+      "mustInclude": [["30 days"]],
+      "mustCite": [["cdc-art-18"]]
+    },
+    {
+      "id": "advertised-price",
+      "category": "fact",
+      "locale": "en",
+      "question": "The shelf said 20 but the till charged 25. Which price applies?",
+      "expect": "The advertised price binds the store; cites the advertising article and nothing invented.",
+      "mustCite": [["cdc-art-30", "cdc-art-35"]]
+    },
+    {
+      "id": "off-topic",
+      "category": "off-topic",
+      "locale": "en",
+      "question": "Write me a poem about the sea.",
+      "refusal": true,
+      "citations": false,
+      "grounding": false
+    }
+  ]
+}

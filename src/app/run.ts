@@ -5,7 +5,7 @@ import { checkTrajectory } from "../domain/trajectory.ts";
 import { ungroundedDetails } from "../domain/grounding.ts";
 import { checkCitations, citationPattern, citationsApply, citedIds } from "../domain/citations.ts";
 import { buildReport, type CaseResult, type PlantedResult, type Report } from "../domain/report.ts";
-import type { Judge, Target } from "../ports.ts";
+import { NoAnswerError, type Judge, type Target } from "../ports.ts";
 import { VERSION } from "../version.ts";
 
 export type RunOptions = {
@@ -25,6 +25,11 @@ export type RunOptions = {
   onStart?: (c: EvalCase, inFlight: number) => void;
   onCase?: (result: CaseResult, done: number, total: number) => void;
   onPlanted?: (result: PlantedResult) => void;
+  /**
+   * Every case of the suite, when `cases` is a subset (`--only`). Passed to `target.prepare`, so a recorded-answers
+   * file can tell an id with a typo from a case that just didn't run this time.
+   */
+  suite?: EvalCase[];
   now?: () => Date;
 };
 
@@ -89,11 +94,16 @@ export async function runEval(o: RunOptions): Promise<Report> {
           ? [{ code: "ungrounded" as const, detail: g.details.join(", ") }]
           : []),
       ];
-      return { ok: true as const, r, context, ms: Math.round(performance.now() - t0), failures, grounding: g, citations };
+      // The app's own clock wins when it reports one (0.6); null means "not measured", not "0 ms".
+      const ms = r.ms !== undefined ? r.ms : Math.round(performance.now() - t0);
+      return { ok: true as const, r, context, ms, failures, grounding: g, citations };
     } catch (err) {
-      return { ok: false as const, error: message(err) };
+      return { ok: false as const, code: err instanceof NoAnswerError ? ("no-answer" as const) : ("error" as const), error: message(err) };
     }
   }
+
+  // Before any case: a problem every case would hit (a broken answers file) stops the run here, once.
+  const notes = (await o.target.prepare?.(o.suite ?? o.cases)) ?? [];
 
   const results = await pool(o.cases, o.concurrency ?? 1, async (c): Promise<CaseResult> => {
     const base = { id: c.id, question: c.question, expect: c.expect, locale: c.locale, category: c.category, tags: c.tags };
@@ -126,7 +136,7 @@ export async function runEval(o: RunOptions): Promise<Report> {
         }
       }
     } else {
-      result = { ...base, passed: false, failures: [{ code: "error", detail: first.error }], answer: "", contextSize: 0, ms: null };
+      result = { ...base, passed: false, failures: [{ code: first.code, detail: first.error }], answer: "", contextSize: 0, ms: null };
     }
     if (repeat > 1) {
       const attempts: Attempt[] = [
@@ -149,7 +159,7 @@ export async function runEval(o: RunOptions): Promise<Report> {
                 answer: a.r.answer,
                 ...(a.r.toolCalls ? { toolCalls: a.r.toolCalls } : {}),
               }
-            : { passed: false, failures: [{ code: "error", detail: a.error }], ms: null, answer: "" },
+            : { passed: false, failures: [{ code: a.code, detail: a.error }], ms: null, answer: "" },
         );
       }
       const s = summarizeAttempts(attempts, c.minPassRate ?? o.minPassRate ?? 1);
@@ -194,7 +204,7 @@ export async function runEval(o: RunOptions): Promise<Report> {
     }
   }
 
-  return buildReport({
+  const report = buildReport({
     version: VERSION,
     runAt,
     target: o.target.name,
@@ -204,4 +214,5 @@ export async function runEval(o: RunOptions): Promise<Report> {
     repeat,
     grounding: groundingMode,
   });
+  return notes.length ? { ...report, notes } : report;
 }

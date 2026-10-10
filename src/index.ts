@@ -2,6 +2,7 @@ export { defineConfig, loadConfig, resolveInputs, type NoxevalConfig } from "./c
 export { runEval, type RunOptions } from "./app/run.ts";
 export { toMarkdown } from "./app/markdown.ts";
 export { httpTarget, functionTarget, type HttpTargetOptions } from "./adapters/http-target.ts";
+export { jsonlTarget, parseJsonl, type JsonlTargetOptions } from "./adapters/jsonl-target.ts";
 export { jevJudge, DEFAULT_JEV_MODEL, type JevJudgeOptions } from "./adapters/jev-judge.ts";
 export { openaiJudge, type OpenAIJudgeOptions } from "./adapters/openai-judge.ts";
 export {
@@ -81,4 +82,5 @@ export type {
   GroundingSummary,
 } from "./domain/report.ts";
 export type { Target, TargetResponse, Judge, JudgeInput, JudgeVerdict } from "./ports.ts";
+export { NoAnswerError } from "./ports.ts";
 export { VERSION } from "./version.ts";
