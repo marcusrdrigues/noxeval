@@ -2,7 +2,9 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.6.0] - 2026-10-10
+
+A regression gate for RAG apps, from adopting noxeval in a second app (a legal RAG assistant written in Java). Additive: without the new config keys and target fields, a run behaves exactly like 0.5.
 
 ### Added
 
@@ -12,6 +14,12 @@ All notable changes to this project are documented here. The format follows [Kee
 - `Target.prepare(suite)` (optional): called once before the first case; throwing stops the run, returned strings become report notes. `TargetResponse.ms`: the app's own timing overrides noxeval's clock, and `null` means not measured. `NoAnswerError` and `RunOptions.suite` exported.
 - Cost and latency per case: targets report `costUsd` (`httpTarget({ costPath })`, `jsonlTarget` lines) and may report their own time (`httpTarget({ msPath })`, time inside the app without the network). `checks.maxCostUsd` and `checks.maxLatencyMs`, or the same fields on a case, fail an answer above them with `over-cost` or `over-latency` (usefulness; with `repeat`, every attempt is checked). A limit with no cost reported, or no time measured, is listed as "not checked", never passed. The report has `cost` (total over every attempt, mean and p90 per answer, answers without a cost), `notChecked`, `costUsd` per case and attempt, and `latencyMs.p95`.
 - With a baseline, cost and p95 latency changes in percent; a rise in cost per answer (mean or p90) above `costWarnPercent` (config, default 20) is a warning, never a failure. Per answer, so adding cases doesn't read as the app getting more expensive. The baseline file keeps `costUsd` (optional: older baselines stay valid). `checkLimits`, `summarizeCost`, `formatUsd` and `percentChange` exported.
+
+### Changed
+
+- `latencyMs` in the report has `p95` next to `p50` and `p90`, and the terminal and Markdown show it.
+- A run with `--only` marks its report `partial: true`.
+- With a baseline, the exit code means "something regressed" instead of "some case failed". Without one, it is unchanged.
 
 ## [0.5.0] - 2026-10-06
 

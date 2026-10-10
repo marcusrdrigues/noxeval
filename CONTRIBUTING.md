@@ -16,12 +16,12 @@ Node.js 22.18 or later. Tests run TypeScript directly with `node --test` (Node s
 
 ```
 src/
-  domain/     pure logic: cases, checks, verdict rule, agreement and kappa, report, blind review
+  domain/     pure logic: cases, checks, citations, limits, verdict rule, agreement and kappa, report, baseline, blind review
   ports.ts    the two interfaces: Target and Judge
-  adapters/   HTTP target, Jev judge, OpenAI-compatible judge
+  adapters/   HTTP and JSONL targets, Jev judge, OpenAI-compatible judge
   app/        the run use case and the Markdown summary
   config.ts   loading noxeval.config.mjs and the files it points to
-  cli/        init, run, review
+  cli/        init, run, review, baseline update
 test/         one file per area; adapters are tested against local fake servers
 examples/     a fake app to try the CLI end to end
 ```
