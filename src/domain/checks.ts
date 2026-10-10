@@ -33,7 +33,10 @@ export type FailureCode =
   | "citation-missing"
   | "no-sources"
   // Recorded answers (0.6): the target had no answer for the case (or for this attempt).
-  | "no-answer";
+  | "no-answer"
+  // Cost and latency limits (0.6), usefulness failures: the answer was safe, it cost too much or took too long.
+  | "over-cost"
+  | "over-latency";
 
 export type Failure = { code: FailureCode; detail: string };
 
@@ -64,6 +67,13 @@ export type CheckOptions = {
    * case has `mustCite` or `mustNotCite`; this only changes the pattern.
    */
   citations?: CitationOptions;
+  /**
+   * Most an answer may cost, in US dollars (0.6). Needs the target to report `costUsd`; without it the limit is
+   * "not checked", never passed. A case's `maxCostUsd` overrides it.
+   */
+  maxCostUsd?: number;
+  /** Slowest acceptable answer, in ms (0.6), on the target's own clock when it reports one. A case can override it. */
+  maxLatencyMs?: number;
 };
 
 /**

@@ -27,6 +27,11 @@ export type TargetResponse = {
    * in 0 ms never shows up as a 0 ms latency.
    */
   ms?: number | null;
+  /**
+   * What this answer cost the app, in US dollars (0.6): model tokens plus anything else per answer (the query
+   * embedding, a reranker). noxeval never guesses prices; without it, cost limits are "not checked".
+   */
+  costUsd?: number;
   /** Anything worth keeping in the report for this case (request id, model that answered...). */
   meta?: Record<string, string | number | boolean | null>;
 };

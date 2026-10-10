@@ -7,7 +7,15 @@ import { failureKind, type Failure } from "./checks.ts";
  * and usefulness failures are compared with a minimum pass rate.
  */
 
-export type Attempt = { passed: boolean; failures: Failure[]; ms: number | null; answer: string; toolCalls?: ToolCall[] };
+export type Attempt = {
+  passed: boolean;
+  failures: Failure[];
+  ms: number | null;
+  answer: string;
+  toolCalls?: ToolCall[];
+  /** What this attempt cost, when the target reported it (0.6). */
+  costUsd?: number;
+};
 
 export type AttemptsSummary = {
   passed: boolean;

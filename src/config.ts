@@ -26,6 +26,11 @@ export type NoxevalConfig = {
    * got worse; `noxeval baseline update` is the only thing that writes it. `--baseline` overrides it.
    */
   baseline?: string;
+  /**
+   * With a baseline (0.6): warn when the cost per answer (mean or p90) rose more than this, in percent. Default 20.
+   * A warning, never a failure: limits per answer are `checks.maxCostUsd`.
+   */
+  costWarnPercent?: number;
 };
 
 /** Identity function that gives editors the config type in a plain .mjs file. */

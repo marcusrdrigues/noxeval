@@ -1,6 +1,6 @@
 import { access, appendFile, writeFile } from "node:fs/promises";
 import { CONFIG_NAMES, loadConfig, resolveInputs } from "../config.ts";
-import { toMarkdown } from "../app/markdown.ts";
+import { costText, latencyText, notCheckedText, toMarkdown } from "../app/markdown.ts";
 import { runEval } from "../app/run.ts";
 import { describeFailure } from "../domain/checks.ts";
 import { formatCall } from "../domain/trajectory.ts";
@@ -54,6 +54,9 @@ export async function runCommand(args: RunArgs): Promise<number> {
   const judge = args.noJudge ? null : (config.judge ?? null);
   const repeat = args.repeat === undefined ? (config.repeat ?? 1) : Number(args.repeat);
   if (!validRepeat(repeat)) throw new Error("repeat must be a whole number from 1 to 50");
+  const warn = config.costWarnPercent;
+  if (warn !== undefined && !(typeof warn === "number" && Number.isFinite(warn) && warn >= 0))
+    throw new Error("costWarnPercent must be a number, 0 or more");
   // Read before any call: a broken baseline fails fast; a missing one means "every case must pass" (stricter, never looser).
   const baselinePath = args.baseline ?? config.baseline;
   const baseline = baselinePath ? await readBaseline(baselinePath) : null;
@@ -103,7 +106,7 @@ export async function runCommand(args: RunArgs): Promise<number> {
   }).finally(() => live.clear());
 
   if (only) report.partial = true;
-  if (baseline) report.baseline = compareReports(baseline, report);
+  if (baseline) report.baseline = compareReports(baseline, report, { costWarnPercent: config.costWarnPercent });
   const out = args.out ?? config.report ?? "noxeval-report.json";
   await writeFile(out, JSON.stringify(report, null, 2) + "\n");
   const md = toMarkdown(report);
@@ -121,9 +124,11 @@ export async function runCommand(args: RunArgs): Promise<number> {
         `  ${ui.c.dim(`report: ${out}${judge ? " · check the judge with: npx noxeval review" : ""}`)}\n`,
     );
   else {
-    console.log(
-      `\n${report.passed}/${report.total} passed · latency p50 ${report.latencyMs.p50 ?? "-"} ms, p90 ${report.latencyMs.p90 ?? "-"} ms`,
-    );
+    console.log(`\n${report.passed}/${report.total} passed · latency ${latencyText(report.latencyMs)}`);
+    const cost = costText(report);
+    if (cost) console.log(`cost: ${cost}`);
+    const unchecked = notCheckedText(report);
+    if (unchecked) console.log(unchecked);
     if (report.judge) {
       const j = report.judge;
       console.log(`judge agreed with the checks on ${Math.round((j.agreementWithChecker ?? 0) * 100)}% of ${j.evaluated} cases`);
@@ -191,7 +196,15 @@ function summaryBox(ui: Ui, r: Report): string {
       ),
     );
   }
-  lines.push(`${ui.pad("latency", 9)} ${ui.c.dim(`p50 ${r.latencyMs.p50 ?? "-"} ms · p90 ${r.latencyMs.p90 ?? "-"} ms`)}`);
+  lines.push(`${ui.pad("latency", 9)} ${ui.c.dim(latencyText(r.latencyMs))}`);
+  const cost = costText(r);
+  if (cost) {
+    // Wrapped after the label, so the label keeps its column like "latency" above.
+    const [first, ...rest] = wrap(cost, ui.width - 14);
+    lines.push(`${ui.pad("cost", 9)} ${ui.c.dim(first ?? "")}`, ...rest.map((l) => `${" ".repeat(10)}${ui.c.dim(l)}`));
+  }
+  const unchecked = notCheckedText(r);
+  if (unchecked) lines.push(...wrap(unchecked, ui.width - 4).map((l) => ui.c.gold(l)));
   if (r.flaky?.length) lines.push(...wrap(`${ui.pad("flaky", 9)} ${r.flaky.join(", ")}`, ui.width - 4).map((l) => ui.c.gold(l)));
   if (r.grounding) {
     const g = r.grounding;

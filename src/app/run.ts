@@ -4,6 +4,7 @@ import { check, type CheckOptions } from "../domain/checks.ts";
 import { checkTrajectory } from "../domain/trajectory.ts";
 import { ungroundedDetails } from "../domain/grounding.ts";
 import { checkCitations, citationPattern, citationsApply, citedIds } from "../domain/citations.ts";
+import { checkLimits, isUsd } from "../domain/limits.ts";
 import { buildReport, type CaseResult, type PlantedResult, type Report } from "../domain/report.ts";
 import { NoAnswerError, type Judge, type Target } from "../ports.ts";
 import { VERSION } from "../version.ts";
@@ -63,6 +64,11 @@ export async function runEval(o: RunOptions): Promise<Report> {
   const repeat = Math.max(1, Math.floor(o.repeat ?? 1));
   // A broken pattern fails the run before any call, not every case with a confusing "error".
   citationPattern(o.checks?.citations?.pattern);
+  for (const key of ["maxCostUsd", "maxLatencyMs"] as const) {
+    const v = o.checks?.[key];
+    if (v !== undefined && !(typeof v === "number" && Number.isFinite(v) && v >= 0))
+      throw new Error(`checks.${key} must be a number, 0 or more`);
+  }
   const groundingMode = o.checks?.grounding ?? "off";
 
   /** Ungrounded details of one answer (0.5); null when the case skips the check or the target sent no context. */
@@ -96,7 +102,11 @@ export async function runEval(o: RunOptions): Promise<Report> {
       ];
       // The app's own clock wins when it reports one (0.6); null means "not measured", not "0 ms".
       const ms = r.ms !== undefined ? r.ms : Math.round(performance.now() - t0);
-      return { ok: true as const, r, context, ms, failures, grounding: g, citations };
+      // A malformed cost is the adapter's bug: an error, never a silently "free" answer.
+      if (r.costUsd !== undefined && !isUsd(r.costUsd)) throw new Error(`costUsd must be a number, 0 or more (got ${String(r.costUsd)})`);
+      const limits = checkLimits(c, { ...(r.costUsd !== undefined ? { costUsd: r.costUsd } : {}), ms }, o.checks);
+      failures.push(...limits.failures);
+      return { ok: true as const, r, context, ms, failures, grounding: g, citations, notChecked: limits.notChecked };
     } catch (err) {
       return { ok: false as const, code: err instanceof NoAnswerError ? ("no-answer" as const) : ("error" as const), error: message(err) };
     }
@@ -125,6 +135,8 @@ export async function runEval(o: RunOptions): Promise<Report> {
         ...(r.meta ? { meta: r.meta } : {}),
         ...(first.grounding ? { grounding: first.grounding } : {}),
         ...(first.citations ? { citations: first.citations } : {}),
+        ...(r.costUsd !== undefined ? { costUsd: r.costUsd } : {}),
+        ...(first.notChecked.length ? { notChecked: first.notChecked } : {}),
       };
       // The judge grades the first attempt only: it checks the checks, it doesn't measure variance (0.4).
       if (o.judge) {
@@ -146,6 +158,7 @@ export async function runEval(o: RunOptions): Promise<Report> {
           ms: result.ms,
           answer: result.answer,
           ...(result.toolCalls ? { toolCalls: result.toolCalls } : {}),
+          ...(result.costUsd !== undefined ? { costUsd: result.costUsd } : {}),
         },
       ];
       for (let i = 1; i < repeat; i++) {
@@ -158,6 +171,7 @@ export async function runEval(o: RunOptions): Promise<Report> {
                 ms: a.ms,
                 answer: a.r.answer,
                 ...(a.r.toolCalls ? { toolCalls: a.r.toolCalls } : {}),
+                ...(a.r.costUsd !== undefined ? { costUsd: a.r.costUsd } : {}),
               }
             : { passed: false, failures: [{ code: a.code, detail: a.error }], ms: null, answer: "" },
         );

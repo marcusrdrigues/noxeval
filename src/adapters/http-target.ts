@@ -22,6 +22,13 @@ export type HttpTargetOptions = {
    * are what `mustCite` and `mustNotCite` compare against; without `contextPath`, their texts are the context.
    */
   sourcesPath?: string;
+  /** Dot path of what the answer cost the app, in US dollars (0.6). Without it, cost limits are "not checked". */
+  costPath?: string;
+  /**
+   * Dot path of the time the app spent, in ms (0.6): time inside the app, without the network. Without it, noxeval
+   * measures the whole request.
+   */
+  msPath?: string;
   timeoutMs?: number;
   name?: string;
 };
@@ -80,6 +87,17 @@ function readSources(json: unknown, path: string): Source[] | undefined {
   });
 }
 
+/**
+ * A number, 0 or more, at a dot path; undefined when the path is absent. Anything else throws: a cost of "free" or
+ * -1 is a bug in the app, not a reason to skip the limit.
+ */
+function readNumber(json: unknown, path: string): number | undefined {
+  const v = pick(json, path);
+  if (v === undefined || v === null) return undefined;
+  if (typeof v !== "number" || !Number.isFinite(v) || v < 0) throw new HttpError(`"${path}" in the response must be a number, 0 or more`);
+  return v;
+}
+
 /** A target that POSTs each case as JSON and reads the answer from the response. */
 export function httpTarget(options: HttpTargetOptions): Target {
   const body = options.body ?? ((c: EvalCase) => ({ question: c.question, locale: c.locale, history: c.history ?? [] }));
@@ -103,7 +121,16 @@ export function httpTarget(options: HttpTargetOptions): Target {
         toolCalls = list === undefined || list === null ? undefined : list.map(asToolCall).filter((t): t is ToolCall => t !== null);
       }
       const sources = options.sourcesPath ? readSources(json, options.sourcesPath) : undefined;
-      return { answer, ...(context ? { context } : {}), ...(toolCalls ? { toolCalls } : {}), ...(sources ? { sources } : {}) };
+      const costUsd = options.costPath ? readNumber(json, options.costPath) : undefined;
+      const ms = options.msPath ? readNumber(json, options.msPath) : undefined;
+      return {
+        answer,
+        ...(context ? { context } : {}),
+        ...(toolCalls ? { toolCalls } : {}),
+        ...(sources ? { sources } : {}),
+        ...(costUsd !== undefined ? { costUsd } : {}),
+        ...(ms !== undefined ? { ms } : {}),
+      };
     },
   };
 }

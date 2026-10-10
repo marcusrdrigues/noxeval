@@ -1,5 +1,6 @@
 import { failureKind, type FailureCode } from "./checks.ts";
 import type { CaseResult, Report } from "./report.ts";
+import { formatUsd, percentChange } from "./limits.ts";
 
 /**
  * Baseline and regression (0.6). A suite with one known-flaky case fails every run, people learn to ignore the red,
@@ -22,7 +23,9 @@ export type Baseline = {
   repeat: number;
   total: number;
   passed: number;
-  latencyMs: { p50: number | null; p90: number | null };
+  latencyMs: { p50: number | null; p90: number | null; p95?: number | null };
+  /** What the answers cost (0.6), when the target reported it. Optional: a baseline without it stays valid. */
+  costUsd?: { totalUsd: number; meanUsd: number; p90Usd: number };
   /** Sorted by id, so an update shows as a small, readable diff. */
   cases: BaselineCase[];
 };
@@ -48,8 +51,18 @@ export type Comparison = {
   removed: string[];
   /** Passed in both. */
   unchanged: number;
-  /** Differences that don't invalidate the comparison but are worth knowing (another target, another repeat). */
+  /**
+   * Cost and latency against the baseline, in percent (0.6); null when either side has no number. A rise in cost per
+   * answer above `costWarnPercent` is a warning, never a failure.
+   */
+  changes: { totalCostPct: number | null; meanCostPct: number | null; p90CostPct: number | null; p95LatencyPct: number | null };
+  /** Differences that don't invalidate the comparison but are worth knowing (another target, a cost rise). */
   warnings: string[];
+};
+
+export type CompareOptions = {
+  /** Warn when the cost per answer (mean or p90) rose more than this, in percent. Default 20. */
+  costWarnPercent?: number;
 };
 
 /** Code-point order, the same on every machine and locale: the baseline diff must not depend on who ran the update. */
@@ -77,6 +90,7 @@ export function toBaseline(report: Report): Baseline {
     total: report.total,
     passed: report.passed,
     latencyMs: report.latencyMs,
+    ...(report.cost ? { costUsd: { totalUsd: report.cost.totalUsd, meanUsd: report.cost.meanUsd, p90Usd: report.cost.p90Usd } } : {}),
     cases: report.cases.map(toBaselineCase).sort((a, b) => byText(a.id, b.id)),
   };
 }
@@ -101,6 +115,9 @@ export function parseBaseline(raw: unknown, file = "baseline"): Baseline {
   throw new Error(`${file}: not a noxeval baseline or report; create one with: npx noxeval baseline update`);
 }
 
+/** "+34.5%", "-2%", "n/a". */
+export const signed = (pct: number | null): string => (pct === null ? "n/a" : `${pct > 0 ? "+" : ""}${pct}%`);
+
 const rate = (c: { passRate?: number }) => (c.passRate === undefined ? "" : ` (pass rate ${Math.round(c.passRate * 100)}%)`);
 
 /**
@@ -113,7 +130,7 @@ const rate = (c: { passRate?: number }) => (c.passRate === undefined ? "" : ` (p
  * Codes, not details: `[x]` becoming `[y]` is the same failure. The judge and planted errors stay out of the gate:
  * the judge checks the checks, it is not the verdict.
  */
-export function compareReports(baseline: Baseline, current: Report): Comparison {
+export function compareReports(baseline: Baseline, current: Report, options: CompareOptions = {}): Comparison {
   const before = new Map(baseline.cases.map((c) => [c.id, c]));
   const out: Comparison = {
     baseline: { runAt: baseline.runAt, target: baseline.target, repeat: baseline.repeat, version: baseline.tool.version },
@@ -125,6 +142,12 @@ export function compareReports(baseline: Baseline, current: Report): Comparison 
     new: [],
     removed: [],
     unchanged: 0,
+    changes: {
+      totalCostPct: percentChange(baseline.costUsd?.totalUsd, current.cost?.totalUsd),
+      meanCostPct: percentChange(baseline.costUsd?.meanUsd, current.cost?.meanUsd),
+      p90CostPct: percentChange(baseline.costUsd?.p90Usd, current.cost?.p90Usd),
+      p95LatencyPct: percentChange(baseline.latencyMs.p95, current.latencyMs.p95),
+    },
     warnings: [],
   };
   for (const now of current.cases) {
@@ -154,6 +177,14 @@ export function compareReports(baseline: Baseline, current: Report): Comparison 
     out.warnings.push(`the baseline was taken against ${baseline.target}, this run against ${current.target}`);
   const repeat = current.repeat ?? 1;
   if (baseline.repeat !== repeat) out.warnings.push(`the baseline asked each case ${baseline.repeat} time(s), this run ${repeat}`);
+  // Per answer, not the total: adding ten cases raises the total without making anything more expensive.
+  const warn = options.costWarnPercent ?? 20;
+  const { meanCostPct, p90CostPct } = out.changes;
+  if (baseline.costUsd && current.cost && ((meanCostPct ?? 0) > warn || (p90CostPct ?? 0) > warn))
+    out.warnings.push(
+      `cost per answer rose above the ${warn}% warning: mean ${formatUsd(baseline.costUsd.meanUsd)} → ${formatUsd(current.cost.meanUsd)} ` +
+        `(${signed(meanCostPct)}), p90 ${formatUsd(baseline.costUsd.p90Usd)} → ${formatUsd(current.cost.p90Usd)} (${signed(p90CostPct)})`,
+    );
   out.passed = out.regressed.length === 0;
   return out;
 }

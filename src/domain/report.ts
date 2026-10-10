@@ -4,6 +4,7 @@ import type { Failure } from "./checks.ts";
 import type { JudgeVerdict } from "../ports.ts";
 import { percentile, type AgreementStats } from "./agreement.ts";
 import type { Comparison } from "./baseline.ts";
+import { summarizeCost, type CostSummary, type Limit } from "./limits.ts";
 
 /** One case after a run. Carries what the blind review needs, so a report can be reviewed without the config. */
 export type CaseResult = {
@@ -39,6 +40,10 @@ export type CaseResult = {
    * reported none) and the ids the answer cited. Ids only, never the passages.
    */
   citations?: { sources: string[] | null; cited: string[] };
+  /** What the first attempt cost, when the target reported it (0.6). */
+  costUsd?: number;
+  /** Limits set for this case that the first attempt couldn't be checked against (0.6): no cost, or no time. */
+  notChecked?: Limit[];
 };
 
 export type PlantedResult = {
@@ -94,7 +99,12 @@ export type Report = {
   passed: number;
   categories: Record<string, Tally>;
   tags: Record<string, Tally>;
-  latencyMs: { p50: number | null; p90: number | null };
+  /** Over every attempt. `p95` is new in 0.6: absent in older reports. */
+  latencyMs: { p50: number | null; p90: number | null; p95?: number | null };
+  /** What the answers cost (0.6), when the target reported it for any. */
+  cost?: CostSummary;
+  /** Cases whose cost or latency limit couldn't be checked (0.6): the target reported no cost, or no time. */
+  notChecked?: { cost: string[]; latency: string[] };
   judge: JudgeSummary | null;
   planted: PlantedSummary | null;
   /** Tool calls across the run (0.3): count per tool and how many cases called any. Null when no case reported calls. */
@@ -194,6 +204,17 @@ export function summarizeTools(results: CaseResult[]): ToolsSummary | null {
   return { calls, cases: reported.filter((r) => (r.toolCalls ?? []).length > 0).length };
 }
 
+/** Cost over every attempt (what the run spent), and the cases whose limits went unchecked. */
+function costAndLimits(cases: CaseResult[]): Pick<Report, "cost" | "notChecked"> {
+  const cost = summarizeCost(cases.flatMap((r) => (r.attempts ? r.attempts.map((a) => a.costUsd) : [r.costUsd])));
+  const unchecked = (limit: Limit) => cases.filter((r) => r.notChecked?.includes(limit)).map((r) => r.id);
+  const notChecked = { cost: unchecked("cost"), latency: unchecked("latency") };
+  return {
+    ...(cost ? { cost } : {}),
+    ...(notChecked.cost.length || notChecked.latency.length ? { notChecked } : {}),
+  };
+}
+
 export function buildReport(input: {
   version: string;
   runAt: string;
@@ -217,7 +238,8 @@ export function buildReport(input: {
     passed: input.cases.filter((r) => r.passed).length,
     categories: tally(input.cases, (r) => [r.category ?? "uncategorized"]),
     tags: tally(input.cases, (r) => r.tags ?? []),
-    latencyMs: { p50: percentile(ms, 0.5), p90: percentile(ms, 0.9) },
+    latencyMs: { p50: percentile(ms, 0.5), p90: percentile(ms, 0.9), p95: percentile(ms, 0.95) },
+    ...costAndLimits(input.cases),
     judge: input.judgeName ? summarizeJudge(input.judgeName, input.cases) : null,
     planted: summarizePlanted(input.planted),
     tools: summarizeTools(input.cases),
