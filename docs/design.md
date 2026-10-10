@@ -48,6 +48,16 @@ The judge grades the first attempt only, and the blind review shows only that an
 
 _Discarded:_ pass@k (passes if any attempt passes). It fits code generation, where the best of k is kept; a chat user sees one answer.
 
+## Regression gate (0.6)
+
+A suite that changes every week can't be graded by "does every case pass?": one known failure keeps it red, and red that is always there stops being read. The baseline answers "did anything get worse than the last run we accepted?", and it is a committed file that only `noxeval baseline update` writes, so accepting a regression is a reviewed change, like a lockfile.
+
+The gate compares failure codes, not details: an invented source `[x]` becoming `[y]` is the same failure, while a known usefulness failure that gains a safety code got worse. The judge and planted errors stay out of it, for the same reason the judge never decides a case: it checks the checks.
+
+Citations, cost and latency follow the rule of the other checks: the target reports what happened (source ids, `costUsd`, its own time) and noxeval never guesses. What can't be checked is listed as not checked (`no-sources`, cost limits without a cost, a recorded line without `ms`), never passed.
+
+_Discarded:_ checking that a cited passage supports its sentence (meaning, the judge's job); estimating cost from token counts and a price table (prices change, and the app knows its own bill); comparing total cost against the baseline (adding cases would read as a dearer app).
+
 ## No runtime dependencies
 
 Node 22 has `fetch`, `readline`, `util.parseArgs` and type stripping. Fewer dependencies means a smaller supply-chain surface (OWASP LLM04) for a tool that handles API keys.

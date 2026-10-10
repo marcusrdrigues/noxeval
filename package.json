@@ -1,6 +1,6 @@
 {
   "name": "noxeval",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Evaluate LLM apps you can trust: deterministic checks first, an optional judge second, and planted errors plus blind human review to check the judge.",
   "type": "module",
   "license": "MIT",

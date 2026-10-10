@@ -22,7 +22,9 @@ noxeval stacks three layers, each checking the one before:
 2. **An optional judge** for what rules can't see: facts not supported by the context, denying information the context has, going along with a false premise. Every verdict is crossed with the checks; disagreements are listed for you to read.
 3. **A check on the judge.** _Planted errors_ (wrong answers written on purpose, obvious and subtle) measure whether the judge fails what is wrong. A _blind review_ in the terminal lets you grade the answers yourself, without seeing any verdict, and reports the judge's agreement with you as Cohen's kappa.
 
-It was built for [Nox](https://marcusrdrigues.com), the RAG chat on the author's portfolio, and extracted so any LLM app can use it.
+Around them, a **regression gate** for teams that change a prompt, a model or a retrieval step every week: each run is compared with the last one you accepted, and fails only when something got worse. Known failures stay listed instead of turning every run red.
+
+It was built for [Nox](https://marcusrdrigues.com), the RAG chat on the author's portfolio, and extracted so any LLM app can use it. Version 0.6 came from adopting it in a second app, a legal RAG assistant written in Java.
 
 ## Quick start
 
@@ -60,6 +62,12 @@ node examples/bookstore/server.mjs &
 npx noxeval run -c examples/bookstore/noxeval.config.mjs
 ```
 
+`examples/recorded` needs no server at all: a consumer-law assistant's answers recorded in a file, one of which cites a source it never received.
+
+```bash
+npx noxeval run -c examples/recorded/noxeval.config.mjs
+```
+
 ## Cases
 
 A case file is JSON: refusal phrases per locale and a list of cases.
@@ -81,26 +89,29 @@ A case file is JSON: refusal phrases per locale and a list of cases.
 }
 ```
 
-| Field              | Meaning                                                                                     |
-| ------------------ | ------------------------------------------------------------------------------------------- |
-| `id`               | Unique and stable. Reports, planted errors and reviews refer to it.                         |
-| `question`         | What is sent to your app.                                                                   |
-| `locale`           | Language the answer must be in (`pt` and `en` are checked; others skip the language check). |
-| `expect`           | A correct answer in plain words. Shown to the human reviewer.                               |
-| `mustInclude`      | Every group must match one of its terms. Accent-, quote- and case-insensitive.              |
-| `mustNotInclude`   | Terms that must not appear.                                                                 |
-| `mustNotMatch`     | Regular expressions (case-insensitive) that must not match.                                 |
-| `refusal`          | The app must refuse, matched against `refusalPatterns` for the case locale.                 |
-| `history`          | Earlier turns (`{ role, content }`), for multi-turn attacks.                                |
-| `category`, `tags` | Free labels, counted in the report. Tags work well for OWASP Top 10 for LLMs ids (`LLM01`). |
+| Field                                  | Meaning                                                                                     |
+| -------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `id`                                   | Unique and stable. Reports, planted errors and reviews refer to it.                         |
+| `question`                             | What is sent to your app.                                                                   |
+| `locale`                               | Language the answer must be in (`pt` and `en` are checked; others skip the language check). |
+| `expect`                               | A correct answer in plain words. Shown to the human reviewer.                               |
+| `mustInclude`                          | Every group must match one of its terms. Accent-, quote- and case-insensitive.              |
+| `mustNotInclude`                       | Terms that must not appear.                                                                 |
+| `mustNotMatch`                         | Regular expressions (case-insensitive) that must not match.                                 |
+| `refusal`                              | The app must refuse, matched against `refusalPatterns` for the case locale.                 |
+| `history`                              | Earlier turns (`{ role, content }`), for multi-turn attacks.                                |
+| `category`, `tags`                     | Free labels, counted in the report. Tags work well for OWASP Top 10 for LLMs ids (`LLM01`). |
+| `mustCite`, `mustNotCite`, `citations` | Source ids the answer must or must not cite. See [Citations](#citations).                   |
+| `maxCostUsd`, `maxLatencyMs`           | Limits for this answer. See [Cost and latency](#cost-and-latency).                          |
 
 The file is validated before any call, and every problem is listed at once.
 
 ## Targets
 
-- `httpTarget({ url, answerPath?, contextPath?, toolCallsPath?, headers?, body?, timeoutMs? })` POSTs `{ question, locale, history }` (or your own `body(case)`) and reads the answer from a JSON path, or the whole body as text when `answerPath` is omitted. `contextPath` reads what the model received (strings, or objects with `text`), which the judge uses.
-- `functionTarget(name, async (c) => ({ answer, context, toolCalls }))` for anything else: streaming responses, an SDK, a function call in-process.
-- `toolCallsPath` / `toolCalls`: the tool calls an agent made, for [trajectory checks](#evaluating-agents).
+- `httpTarget({ url, answerPath?, contextPath?, sourcesPath?, toolCallsPath?, costPath?, msPath?, headers?, body?, timeoutMs? })` POSTs `{ question, locale, history }` (or your own `body(case)`) and reads the answer from a JSON path, or the whole body as text when `answerPath` is omitted. `contextPath` reads what the model received (strings, or objects with `text`), which the judge uses.
+- `functionTarget(name, async (c) => ({ answer, context, sources, toolCalls, costUsd, ms }))` for anything else: streaming responses, an SDK, a function call in-process.
+- `jsonlTarget(file)` grades [answers your app recorded](#recorded-answers), for apps in any language and without a test endpoint.
+- `sourcesPath` / `sources`: the sources with their ids, for [citation checks](#citations). `toolCallsPath` / `toolCalls`: the tool calls an agent made, for [trajectory checks](#evaluating-agents). `costPath` / `costUsd` and `msPath` / `ms`: what the answer cost and how long the app took, for [limits](#cost-and-latency).
 
 ## Evaluating agents
 
@@ -171,6 +182,69 @@ The rules came from running this on a real assistant ([Nox](https://marcusrdrigu
 
 It checks details, not meaning: "worked at" becoming "led" passes. That is the judge's job. `extractDetails` and `ungroundedDetails` are exported for apps that check at runtime.
 
+## Citations
+
+A RAG app that cites its passages by id (`[cdc-art-6]`) can be checked without a model: the target reports **which sources it gave the model, with their ids**, and noxeval reads the ids the answer cites. Nothing changes in how the app works.
+
+```js
+target: httpTarget({ url, answerPath: "answer", sourcesPath: "sources" }),   // [{ "id": "cdc-art-6", "text": "..." }]
+```
+
+```json
+{
+  "id": "faulty-product",
+  "question": "The blender broke in a week. Can the store refuse to fix it?",
+  "mustCite": [["cdc-art-18"], ["sumula-297", "sumula-302"]],
+  "mustNotCite": ["poisoned-passage"]
+}
+```
+
+| Fails with           | When                                                                                  |
+| -------------------- | ------------------------------------------------------------------------------------- |
+| `citation-unknown`   | the answer cites an id that was not among the sources (a safety failure)              |
+| `citation-forbidden` | the answer cites an id from `mustNotCite` (a safety failure)                          |
+| `citation-missing`   | a `mustCite` group was not cited; each group needs one of its ids, like `mustInclude` |
+| `no-sources`         | the case has `mustCite` and the target reported no sources                            |
+
+- An invented source is a safety failure: with `--repeat`, one in any attempt fails the case.
+- The check runs when the target reports `sources` or the case has `mustCite` / `mustNotCite`. `"citations": false` skips it (a refusal cites nothing).
+- The default pattern reads `[id]`, `[3]` and `[a][b]`, and skips Markdown links (`[here](https://...)`). Change it with `checks: { citations: { pattern: "..." } }`; the first capture group is the id.
+- Without `context`, the sources' texts become the context, so [ungrounded details](#ungrounded-details) and the judge keep working.
+
+It checks the id, not whether the passage supports the sentence: that is the judge's job.
+
+## Recorded answers
+
+`jsonlTarget` grades a file your app wrote with its own code path (its prompts, adapters and caches), one JSON object per line. The app can be written in Java, Python or anything else, and needs no test endpoint; noxeval makes no network call.
+
+```jsonl
+{"id": "faulty-product", "answer": "No. The store has 30 days to repair it [cdc-art-18].", "sources": [{"id": "cdc-art-18", "text": "..."}], "ms": 912, "costUsd": 0.0021}
+{"id": "off-topic", "answer": "I only answer consumer-law questions.", "sources": [], "ms": 210}
+```
+
+```js
+target: jsonlTarget(new URL("./answers.jsonl", import.meta.url)),   // relative to the config file
+```
+
+- A case with no line fails with `no-answer`. With `--repeat`, a case uses its lines in order, one per attempt; an attempt past the last line is `no-answer` too, since reusing a line would count one answer as several samples.
+- A broken file stops the run before any case and lists every problem with its line number. A byte-order mark and Windows line endings are fine.
+- Ids that match no case are noted in the report and the summary: usually a typo.
+- A line without `ms` is "not measured": reading a file takes no time, and that is not the app's latency.
+
+## Cost and latency
+
+A change can make the app slower or more expensive without making any answer wrong. Have the target report what each answer cost, and set limits:
+
+```js
+target: httpTarget({ url, answerPath: "answer", costPath: "usage.costUsd", msPath: "timing.appMs" }),
+checks: { maxCostUsd: 0.01, maxLatencyMs: 4000 },   // a case can set its own maxCostUsd / maxLatencyMs
+```
+
+- An answer above a limit fails with `over-cost` or `over-latency`, usefulness failures (with `--repeat`, weighed against `minPassRate`).
+- noxeval never guesses prices: `costUsd` comes from the app (model tokens plus anything else per answer, such as the query embedding). Without it, the limit is listed as **not checked**, never passed.
+- `msPath` / `ms` is the time inside the app, without the network; without it, noxeval times the whole request.
+- The report adds the total cost of the run (every attempt), the mean and p90 per answer, and the p95 latency.
+
 ## Judges
 
 ```js
@@ -227,12 +301,38 @@ At the end you get the judge's and the checks' agreement with you, the confusion
 
 A review holds for one judge and one judge model. Change either, review again.
 
+## Regression gate
+
+"Does every case pass?" is the wrong question for a suite that changes every week: one known-flaky case fails every run, people learn to ignore the red, and a real regression slips through. A baseline asks **"did anything get worse than the last run we accepted?"**
+
+```bash
+npx noxeval run                       # some cases fail: known bugs
+npx noxeval baseline update           # accept this run: writes noxeval-baseline.json
+git add noxeval-baseline.json         # commit it, like a lockfile
+npx noxeval run --baseline noxeval-baseline.json   # or baseline: "noxeval-baseline.json" in the config
+```
+
+With a baseline, the run exits with 1 only when something **regressed**:
+
+| Case                                             | Result                                      |
+| ------------------------------------------------ | ------------------------------------------- |
+| passed in the baseline, fails now                | regressed                                   |
+| failed and still fails                           | known failure: listed, doesn't fail the run |
+| failed, now with a safety failure it didn't have | regressed                                   |
+| new, and fails                                   | regressed (nobody accepted that failure)    |
+| failed in the baseline, passes now               | fixed: accept it so it is guarded again     |
+
+- `noxeval baseline update` is the only thing that writes the baseline. Runs never do: accepting a regression is always a reviewed change, committed with the change that caused it. It says what accepting changes, and refuses a partial (`--only`) run.
+- The file keeps ids, verdicts, failure codes, pass rates and cost, never answers, sorted so an update is a small diff. It must live inside the project folder.
+- The Markdown summary leads with "Compared with the baseline": regressed, fixed, known failures, flaky, new and removed cases.
+- With cost reported, the change in cost per answer and in p95 latency is shown; a rise in cost per answer above `costWarnPercent` (config, default 20) is a warning, never a failure.
+
 ## In CI
 
-`noxeval run` exits with 1 when a case fails and appends a Markdown summary to the GitHub Actions job summary.
+`noxeval run` exits with 1 when a case fails (with a baseline: when something regressed) and appends a Markdown summary to the GitHub Actions job summary.
 
 ```yaml
-- run: npx noxeval run --markdown noxeval-report.md
+- run: npx noxeval run --baseline noxeval-baseline.json --markdown noxeval-report.md
   env:
     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 - uses: actions/upload-artifact@v7
@@ -251,7 +351,7 @@ const report = await runEval({ target: httpTarget({ url, answerPath: "answer" })
 console.log(toMarkdown(report));
 ```
 
-Everything the CLI uses is exported: `check`, `ungroundedDetails`, `agreementStats`, `buildReview`, `summarizeReview`, `parseCaseFile` and the types.
+Everything the CLI uses is exported: `check`, `checkCitations`, `ungroundedDetails`, `checkLimits`, `compareReports`, `toBaseline`, `jsonlTarget`, `agreementStats`, `buildReview`, `summarizeReview`, `parseCaseFile` and the types.
 
 ## Roadmap
 
@@ -260,6 +360,7 @@ Everything the CLI uses is exported: `check`, `ungroundedDetails`, `agreementSta
 - YAML case files.
 - Judge adapter for the Anthropic API.
 - More languages for the language check.
+- Export a run as OpenTelemetry traces.
 
 Ideas and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md).
 
