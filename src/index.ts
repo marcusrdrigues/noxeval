@@ -43,6 +43,15 @@ export {
   type Source,
 } from "./domain/citations.ts";
 export { asToolCall, asSource } from "./adapters/http-target.ts";
+export {
+  compareReports,
+  parseBaseline,
+  toBaseline,
+  type Baseline,
+  type BaselineCase,
+  type Comparison,
+  type Regression,
+} from "./domain/baseline.ts";
 export { agreementStats, percentile, type AgreementStats, type Pair } from "./domain/agreement.ts";
 export { decide, sureness, type Signals } from "./domain/verdict.ts";
 export { buildReview, grade, summarizeReview, type ReviewFile, type ReviewItem } from "./domain/review.ts";

@@ -1,16 +1,46 @@
 import { describeFailure } from "../domain/checks.ts";
 import { formatCall } from "../domain/trajectory.ts";
 import type { Report } from "../domain/report.ts";
+import type { Comparison } from "../domain/baseline.ts";
 
 const pct = (v: number | null) => (v === null ? "n/a" : `${Math.round(v * 100)}%`);
 const cell = (s: string) => s.replace(/\|/g, "\\|").replace(/\n/g, " ");
 
+const ids = (list: string[]) => (list.length ? list.map((id) => `\`${cell(id)}\``).join(", ") : "-");
+
+/** "Compared with the baseline": counts first, then why each regressed case regressed. */
+function comparisonTable(b: Comparison): string[] {
+  const lines = [`### Compared with the baseline of ${b.baseline.runAt}`, "", "| | Cases |", "| --- | --- |"];
+  lines.push(`| Regressed | ${ids(b.regressed.map((x) => x.id))} |`);
+  lines.push(`| Fixed | ${ids(b.fixed)} |`);
+  lines.push(`| Known failures | ${ids(b.knownFailures)} |`);
+  lines.push(`| Flaky | ${ids(b.flaky)} |`);
+  lines.push(`| New | ${ids(b.new.map((x) => x.id))} |`);
+  lines.push(`| Removed | ${ids(b.removed)} |`);
+  lines.push(`| Unchanged | ${b.unchanged} |`, "");
+  if (b.regressed.length) {
+    lines.push("| Regressed case | Why |", "| --- | --- |");
+    for (const x of b.regressed) lines.push(`| \`${cell(x.id)}\` | ${cell(x.reason)} |`);
+    lines.push("");
+  }
+  if (b.fixed.length)
+    lines.push("Fixed cases are not guarded until accepted: run `npx noxeval baseline update` and commit the baseline.", "");
+  for (const w of b.warnings) lines.push(`Note: ${cell(w)}.`, "");
+  return lines;
+}
+
 /** A short Markdown summary of a report: fits a pull request comment or a GitHub Actions job summary. */
 export function toMarkdown(r: Report): string {
   const lines: string[] = [];
-  const ok = r.passed === r.total;
-  lines.push(`## noxeval: ${r.passed}/${r.total} passed ${ok ? "✅" : "❌"}`, "");
+  const b = r.baseline;
+  if (b) {
+    // With a baseline the headline is the gate: a known failure is not news, a regression is.
+    const known = r.total - r.passed;
+    const counts = `(${r.passed}/${r.total} passed${known ? `, ${known} known failure${known > 1 ? "s" : ""}` : ""})`;
+    lines.push(b.passed ? `## noxeval: no regressions ✅ ${counts}` : `## noxeval: ${b.regressed.length} regressed ❌ ${counts}`, "");
+  } else lines.push(`## noxeval: ${r.passed}/${r.total} passed ${r.passed === r.total ? "✅" : "❌"}`, "");
   lines.push(`Target \`${cell(r.target)}\` · ${r.runAt} · latency p50 ${r.latencyMs.p50 ?? "-"} ms, p90 ${r.latencyMs.p90 ?? "-"} ms`, "");
+  if (b) lines.push(...comparisonTable(b));
 
   const categories = Object.entries(r.categories);
   if (categories.length > 1) {
