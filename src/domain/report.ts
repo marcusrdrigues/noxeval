@@ -33,6 +33,11 @@ export type CaseResult = {
    * no context: never read that as grounded.
    */
   grounding?: { checked: boolean; details: string[] };
+  /**
+   * Citations of the first attempt (0.6), when the check applies: the source ids the target reported (null when it
+   * reported none) and the ids the answer cited. Ids only, never the passages.
+   */
+  citations?: { sources: string[] | null; cited: string[] };
 };
 
 export type PlantedResult = {

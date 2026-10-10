@@ -1,4 +1,5 @@
 import type { EvalCase, ToolCall } from "../domain/case.ts";
+import type { Source } from "../domain/citations.ts";
 import type { Target, TargetResponse } from "../ports.ts";
 import { HttpError, pick, postJson } from "./http.ts";
 
@@ -16,6 +17,11 @@ export type HttpTargetOptions = {
    * OpenAI shape `{ function: { name, arguments } }`, with arguments as an object or a JSON string.
    */
   toolCallsPath?: string;
+  /**
+   * Dot path of the sources the model received (0.6): an array of `{ id, text }`, the id a string or a number. They
+   * are what `mustCite` and `mustNotCite` compare against; without `contextPath`, their texts are the context.
+   */
+  sourcesPath?: string;
   timeoutMs?: number;
   name?: string;
 };
@@ -50,6 +56,29 @@ export function asToolCall(item: unknown): ToolCall | null {
   return args ? { name, args } : { name };
 }
 
+/** One reported source, or null when it lacks an id (string or number) or a text. */
+export function asSource(item: unknown): Source | null {
+  if (!item || typeof item !== "object") return null;
+  const o = item as Record<string, unknown>;
+  const id = typeof o.id === "number" ? String(o.id) : typeof o.id === "string" ? o.id.trim() : "";
+  return id && typeof o.text === "string" ? { id, text: o.text } : null;
+}
+
+/**
+ * Sources at a dot path. A malformed item throws instead of being dropped: a dropped source would turn every citation
+ * of it into `citation-unknown`, a safety failure the app didn't cause.
+ */
+function readSources(json: unknown, path: string): Source[] | undefined {
+  const list = pick(json, path);
+  if (list === undefined || list === null) return undefined;
+  if (!Array.isArray(list)) throw new HttpError(`no array at "${path}" in the response`);
+  return list.map((item, i) => {
+    const s = asSource(item);
+    if (!s) throw new HttpError(`source #${i + 1} at "${path}" needs an "id" (string or number) and a "text"`);
+    return s;
+  });
+}
+
 /** A target that POSTs each case as JSON and reads the answer from the response. */
 export function httpTarget(options: HttpTargetOptions): Target {
   const body = options.body ?? ((c: EvalCase) => ({ question: c.question, locale: c.locale, history: c.history ?? [] }));
@@ -72,7 +101,8 @@ export function httpTarget(options: HttpTargetOptions): Target {
           throw new HttpError(`no array at "${options.toolCallsPath}" in the response`);
         toolCalls = list === undefined || list === null ? undefined : list.map(asToolCall).filter((t): t is ToolCall => t !== null);
       }
-      return { answer, ...(context ? { context } : {}), ...(toolCalls ? { toolCalls } : {}) };
+      const sources = options.sourcesPath ? readSources(json, options.sourcesPath) : undefined;
+      return { answer, ...(context ? { context } : {}), ...(toolCalls ? { toolCalls } : {}), ...(sources ? { sources } : {}) };
     },
   };
 }

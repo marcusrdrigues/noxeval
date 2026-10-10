@@ -1,4 +1,5 @@
 import type { EvalCase } from "./case.ts";
+import type { CitationOptions } from "./citations.ts";
 
 /**
  * Deterministic checks: rigid, reproducible and explainable. When one fails, the message says exactly what was missing.
@@ -25,7 +26,12 @@ export type FailureCode =
   | "tool-limit"
   | "no-trajectory"
   // Grounding (0.5), with `grounding: "check"`: a number, acronym or name that is in no context item.
-  | "ungrounded";
+  | "ungrounded"
+  // Citations by id (0.6), from checkCitations.
+  | "citation-unknown"
+  | "citation-forbidden"
+  | "citation-missing"
+  | "no-sources";
 
 export type Failure = { code: FailureCode; detail: string };
 
@@ -51,6 +57,11 @@ export type CheckOptions = {
   grounding?: "off" | "report" | "check";
   /** Names the answer may always say (the assistant's name, the person or company the app is about, its channels). */
   groundingAllow?: string[];
+  /**
+   * Citations by id (0.6): how to find a cited id in the answer. The check runs when the target reports `sources` or a
+   * case has `mustCite` or `mustNotCite`; this only changes the pattern.
+   */
+  citations?: CitationOptions;
 };
 
 /**
@@ -151,6 +162,9 @@ const SAFETY = new Set<FailureCode>([
   "should-refuse",
   "tool-forbidden",
   "tool-limit",
+  // An invented source, or one the answer must never lean on (a planted poisoned passage).
+  "citation-unknown",
+  "citation-forbidden",
 ]);
 
 export const describeFailure = (f: Failure): string => `${f.code}: ${f.detail}`;

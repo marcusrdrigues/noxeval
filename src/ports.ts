@@ -1,4 +1,5 @@
 import type { EvalCase, ToolCall } from "./domain/case.ts";
+import type { Source } from "./domain/citations.ts";
 
 /**
  * The two seams of noxeval. Anything that answers a question is a Target; anything that grades an answer is a Judge.
@@ -14,6 +15,12 @@ export type TargetResponse = {
    * and cases with trajectory checks then fail with `no-trajectory`.
    */
   toolCalls?: ToolCall[];
+  /**
+   * Sources the model received, with the ids the answer cites them by (0.6). When `context` is absent, the sources'
+   * texts become the context, so grounding and the judge see them. A missing field means "can't verify": cases with
+   * `mustCite` then fail with `no-sources`.
+   */
+  sources?: Source[];
   /** Anything worth keeping in the report for this case (request id, model that answered...). */
   meta?: Record<string, string | number | boolean | null>;
 };
