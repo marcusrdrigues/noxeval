@@ -1,10 +1,45 @@
 import { describeFailure } from "../domain/checks.ts";
 import { formatCall } from "../domain/trajectory.ts";
 import type { Report } from "../domain/report.ts";
-import type { Comparison } from "../domain/baseline.ts";
+import { signed, type Comparison } from "../domain/baseline.ts";
+import { formatUsd } from "../domain/limits.ts";
 
 const pct = (v: number | null) => (v === null ? "n/a" : `${Math.round(v * 100)}%`);
 const cell = (s: string) => s.replace(/\|/g, "\\|").replace(/\n/g, " ");
+
+/** "p50 840 ms · p90 1200 ms · p95 1500 ms", shared by the terminal and the Markdown summary. */
+export const latencyText = (l: Report["latencyMs"]): string => `p50 ${l.p50 ?? "-"} ms · p90 ${l.p90 ?? "-"} ms · p95 ${l.p95 ?? "-"} ms`;
+
+/** "total $0.0123 · mean $0.00041 · p90 $0.00090 per answer (2 answers without a cost)", or null without cost data. */
+export function costText(r: Report): string | null {
+  const c = r.cost;
+  if (!c) return null;
+  return (
+    `total ${formatUsd(c.totalUsd)} · mean ${formatUsd(c.meanUsd)} · p90 ${formatUsd(c.p90Usd)} per answer` +
+    (c.notReported ? ` (${c.notReported} answer${c.notReported > 1 ? "s" : ""} without a cost)` : "")
+  );
+}
+
+/** Limits that couldn't be checked, or null when every limit was. Never silent: "not checked" is not "within". */
+export function notCheckedText(r: Report): string | null {
+  const n = r.notChecked;
+  if (!n) return null;
+  const parts = [
+    ...(n.cost.length ? [`cost on ${n.cost.length} case(s), no costUsd reported: ${n.cost.join(", ")}`] : []),
+    ...(n.latency.length ? [`latency on ${n.latency.length} case(s), not timed: ${n.latency.join(", ")}`] : []),
+  ];
+  return `limits not checked: ${parts.join("; ")}`;
+}
+
+/** "cost per answer: mean +12.5%, p90 +3% (total +40%) · latency p95 -4%", or null when nothing compares. */
+export function changesText(c: Comparison): string | null {
+  const ch = c.changes;
+  const parts: string[] = [];
+  if (ch.meanCostPct !== null || ch.p90CostPct !== null)
+    parts.push(`cost per answer: mean ${signed(ch.meanCostPct)}, p90 ${signed(ch.p90CostPct)} (total ${signed(ch.totalCostPct)})`);
+  if (ch.p95LatencyPct !== null) parts.push(`latency p95 ${signed(ch.p95LatencyPct)}`);
+  return parts.length ? parts.join(" · ") : null;
+}
 
 const ids = (list: string[]) => (list.length ? list.map((id) => `\`${cell(id)}\``).join(", ") : "-");
 
@@ -18,6 +53,8 @@ function comparisonTable(b: Comparison): string[] {
   lines.push(`| New | ${ids(b.new.map((x) => x.id))} |`);
   lines.push(`| Removed | ${ids(b.removed)} |`);
   lines.push(`| Unchanged | ${b.unchanged} |`, "");
+  const changes = changesText(b);
+  if (changes) lines.push(`Against the baseline: ${cell(changes)}.`, "");
   if (b.regressed.length) {
     lines.push("| Regressed case | Why |", "| --- | --- |");
     for (const x of b.regressed) lines.push(`| \`${cell(x.id)}\` | ${cell(x.reason)} |`);
@@ -39,7 +76,11 @@ export function toMarkdown(r: Report): string {
     const counts = `(${r.passed}/${r.total} passed${known ? `, ${known} known failure${known > 1 ? "s" : ""}` : ""})`;
     lines.push(b.passed ? `## noxeval: no regressions ✅ ${counts}` : `## noxeval: ${b.regressed.length} regressed ❌ ${counts}`, "");
   } else lines.push(`## noxeval: ${r.passed}/${r.total} passed ${r.passed === r.total ? "✅" : "❌"}`, "");
-  lines.push(`Target \`${cell(r.target)}\` · ${r.runAt} · latency p50 ${r.latencyMs.p50 ?? "-"} ms, p90 ${r.latencyMs.p90 ?? "-"} ms`, "");
+  lines.push(`Target \`${cell(r.target)}\` · ${r.runAt} · latency ${latencyText(r.latencyMs)}`, "");
+  const cost = costText(r);
+  if (cost) lines.push(`Cost: ${cost}.`, "");
+  const unchecked = notCheckedText(r);
+  if (unchecked) lines.push(`${cell(unchecked.replace(/^limits/, "Limits"))}.`, "");
   for (const n of r.notes ?? []) lines.push(`Note: ${cell(n)}.`, "");
   if (b) lines.push(...comparisonTable(b));
 

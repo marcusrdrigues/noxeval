@@ -58,6 +58,7 @@ test("parseJsonl: every field read like httpTarget reads it; ms null when the li
     toolCalls: [{ name: "search", args: { q: "cdc" } }],
     meta: { model: "m-1", cached: true, n: null },
     ms: 840,
+    costUsd: 0.002,
   });
   assert.deepEqual(byId.get("b")?.[0], { answer: "untimed", ms: null });
   assert.equal(parseJsonl(line({ key: "x", answer: "y" }), "f", "key").get("x")?.[0]?.answer, "y", "idField");
@@ -113,7 +114,7 @@ test("acceptance 7: a file of recorded answers is graded with no network call; a
 test("untimed lines leave latency unmeasured instead of reporting 0 ms", async () => {
   const report = await runEval({ target: jsonlTarget(await file(line({ id: "hours", answer: "At 9." }))), cases: [hours] });
   assert.equal(report.cases[0]?.ms, null);
-  assert.deepEqual(report.latencyMs, { p50: null, p90: null });
+  assert.deepEqual(report.latencyMs, { p50: null, p90: null, p95: null });
 });
 
 test("repeat: lines are used in order, one per attempt; an attempt past the last line is no-answer, never a reused line", async () => {

@@ -2,6 +2,7 @@ import { access, readFile, writeFile } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 import { CONFIG_NAMES, loadConfig, type NoxevalConfig } from "../config.ts";
 import { compareReports, parseBaseline, type Baseline, type Comparison } from "../domain/baseline.ts";
+import { changesText } from "../app/markdown.ts";
 import type { Report } from "../domain/report.ts";
 
 export const DEFAULT_BASELINE = "noxeval-baseline.json";
@@ -52,6 +53,8 @@ export function comparisonLines(c: Comparison): string[] {
       `${c.new.length} new · ${c.removed.length} removed · ${c.unchanged} unchanged`,
   ];
   for (const r of c.regressed) lines.push(`  regressed ${r.id}: ${r.reason}`);
+  const changes = changesText(c);
+  if (changes) lines.push(`  ${changes}`);
   if (c.knownFailures.length) lines.push(`  known failures (accepted, still failing): ${list(c.knownFailures)}`);
   if (c.removed.length) lines.push(`  removed: ${list(c.removed)}`);
   // A fixed case stays unguarded until it is accepted: if it breaks again, the baseline still says "fails".

@@ -64,6 +64,12 @@ export type EvalCase = {
   mustNotCite?: string[];
   /** Set to false to skip the citation check on this case (a refusal cites nothing). */
   citations?: false;
+
+  // Cost and latency (0.6): override `checks.maxCostUsd` and `checks.maxLatencyMs` for this case.
+  /** Most this answer may cost, in US dollars. The target reports `costUsd`. */
+  maxCostUsd?: number;
+  /** Slowest acceptable answer, in ms. */
+  maxLatencyMs?: number;
 };
 
 export type CaseFile = {
@@ -214,6 +220,9 @@ export function parseCaseFile(raw: unknown, file = "cases"): CaseFile {
       problems.push(`${at}: "minPassRate" must be a number from 0 to 1`);
     if (c.grounding !== undefined && c.grounding !== false) problems.push(`${at}: "grounding" can only be false (to skip the check)`);
     problems.push(...citationProblems(c, at));
+    for (const key of ["maxCostUsd", "maxLatencyMs"] as const)
+      if (c[key] !== undefined && !(typeof c[key] === "number" && Number.isFinite(c[key]) && c[key] >= 0))
+        problems.push(`${at}: "${key}" must be a number, 0 or more`);
     cases.push(c as EvalCase);
   });
   if (cases.length === 0) problems.push("no cases");

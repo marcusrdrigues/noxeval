@@ -63,7 +63,6 @@ function toResponse(o: Record<string, unknown>, at: string): { response?: Target
   if (o.meta !== undefined && !(isObject(o.meta) && Object.values(o.meta).every(isScalarOrNull)))
     problems.push(`${at}: "meta" must be an object of strings, numbers, booleans or null`);
   if (o.ms !== undefined && o.ms !== null && !isNonNegative(o.ms)) problems.push(`${at}: "ms" must be a number, 0 or more`);
-  // Read now so a recorded file stays valid; the cost checks themselves come with the cost and latency limits.
   if (o.costUsd !== undefined && !isNonNegative(o.costUsd)) problems.push(`${at}: "costUsd" must be a number, 0 or more`);
 
   if (problems.length) return { problems };
@@ -77,6 +76,7 @@ function toResponse(o: Record<string, unknown>, at: string): { response?: Target
       ...(o.meta !== undefined ? { meta: o.meta as TargetResponse["meta"] } : {}),
       // A line without "ms" was not timed: null keeps a 0 ms file read out of the latency numbers.
       ms: isNonNegative(o.ms) ? o.ms : null,
+      ...(isNonNegative(o.costUsd) ? { costUsd: o.costUsd } : {}),
     },
   };
 }

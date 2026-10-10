@@ -45,12 +45,23 @@ export {
 } from "./domain/citations.ts";
 export { asToolCall, asSource } from "./adapters/http-target.ts";
 export {
+  checkLimits,
+  formatUsd,
+  percentChange,
+  summarizeCost,
+  type CostSummary,
+  type Limit,
+  type LimitsResult,
+  type Measured,
+} from "./domain/limits.ts";
+export {
   compareReports,
   parseBaseline,
   toBaseline,
   type Baseline,
   type BaselineCase,
   type Comparison,
+  type CompareOptions,
   type Regression,
 } from "./domain/baseline.ts";
 export { agreementStats, percentile, type AgreementStats, type Pair } from "./domain/agreement.ts";
