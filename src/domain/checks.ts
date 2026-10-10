@@ -90,11 +90,19 @@ export function contains(text: string, term: string): boolean {
   return t.length > 0 && normalize(text).includes(t);
 }
 
-/** Rough language guess from common words. Good enough to catch an answer in the wrong language. */
+/**
+ * Rough language guess from common words. Good enough to catch an answer in the wrong language.
+ * Words that exist in both languages stay out ("no", "do" and "for"): "for" is also Portuguese ("se o contrato for de consumo"), and a
+ * Portuguese answer with "for" and none of the listed words was read as English.
+ */
 export function languageOf(text: string): "pt" | "en" | "?" {
   const n = normalize(text);
-  const pt = (n.match(/\b(ele|ela|nao|sobre|trabalha|para|uma|seu|sua|perguntas|voce|isso)\b|cao\b|coes\b/g) ?? []).length;
-  const en = (n.match(/\b(he|she|his|her|the|works|with|for|about|only|questions|you|this)\b/g) ?? []).length;
+  const pt = (
+    n.match(
+      /\b(ele|ela|nao|sobre|trabalha|para|uma|seu|sua|perguntas|voce|isso|que|de|da|dos|das|em|na|ao|com|pelo|pela|mais|tambem|devem|deve|pode|sao|ou)\b|cao\b|coes\b/g,
+    ) ?? []
+  ).length;
+  const en = (n.match(/\b(he|she|his|her|the|works|with|about|only|questions|you|this|and|is|are|of|to|that|it)\b/g) ?? []).length;
   return pt === en ? "?" : pt > en ? "pt" : "en";
 }
 

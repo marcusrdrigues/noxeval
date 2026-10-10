@@ -59,6 +59,16 @@ test("refusal, leak, language, length and empty answers", () => {
     ["wrong-language"],
   );
   assert.equal(languageOf("123"), "?");
+  // "for" is Portuguese too: this answer, from a legal assistant, was read as English.
+  assert.equal(
+    languageOf(
+      "Cláusulas ambíguas ou contraditórias em contrato de adesão devem ser interpretadas da forma mais favorável " +
+        "ao aderente. Se o contrato for de consumo, as cláusulas também devem ser interpretadas de maneira mais favorável.",
+    ),
+    "pt",
+  );
+  assert.equal(languageOf("Thanks for asking: the store must fix it within 30 days."), "en");
+  assert.equal(languageOf("Do you know? There is no warranty on this product."), "en");
   assert.deepEqual(
     check(base, "   ").map((f) => f.code),
     ["empty"],
