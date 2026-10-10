@@ -21,6 +21,11 @@ export type NoxevalConfig = {
   minPassRate?: number;
   /** Where `noxeval run` writes the report. Default "noxeval-report.json". */
   report?: string;
+  /**
+   * The accepted baseline (0.6), like `report` relative to where noxeval runs. With it, a run fails only when something
+   * got worse; `noxeval baseline update` is the only thing that writes it. `--baseline` overrides it.
+   */
+  baseline?: string;
 };
 
 /** Identity function that gives editors the config type in a plain .mjs file. */

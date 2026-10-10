@@ -3,6 +3,7 @@ import type { Attempt } from "./variance.ts";
 import type { Failure } from "./checks.ts";
 import type { JudgeVerdict } from "../ports.ts";
 import { percentile, type AgreementStats } from "./agreement.ts";
+import type { Comparison } from "./baseline.ts";
 
 /** One case after a run. Carries what the blind review needs, so a report can be reviewed without the config. */
 export type CaseResult = {
@@ -106,6 +107,10 @@ export type Report = {
   flaky?: string[];
   /** Ungrounded details (0.5); absent when grounding is off. */
   grounding?: GroundingSummary;
+  /** Only some cases ran (`--only`, 0.6). A partial report can't become the baseline. */
+  partial?: true;
+  /** This run compared with the accepted baseline (0.6), when there is one. */
+  baseline?: Comparison;
   cases: CaseResult[];
 };
 

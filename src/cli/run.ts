@@ -7,6 +7,8 @@ import { formatCall } from "../domain/trajectory.ts";
 import type { Report } from "../domain/report.ts";
 import { VERSION } from "../version.ts";
 import { colorEnabled, createUi, spinner, wrap, type Ui } from "./ui.ts";
+import { compareReports } from "../domain/baseline.ts";
+import { comparisonLines, missingBaseline, readBaseline } from "./baseline.ts";
 
 export type RunArgs = {
   config?: string;
@@ -16,6 +18,8 @@ export type RunArgs = {
   repeat?: string;
   /** "off", "report" or "check" (0.5); overrides `checks.grounding` in the config. */
   grounding?: string;
+  /** Baseline file to compare with (0.6); overrides `baseline` in the config. */
+  baseline?: string;
   noJudge: boolean;
 };
 
@@ -50,6 +54,9 @@ export async function runCommand(args: RunArgs): Promise<number> {
   const judge = args.noJudge ? null : (config.judge ?? null);
   const repeat = args.repeat === undefined ? (config.repeat ?? 1) : Number(args.repeat);
   if (!validRepeat(repeat)) throw new Error("repeat must be a whole number from 1 to 50");
+  // Read before any call: a broken baseline fails fast; a missing one means "every case must pass" (stricter, never looser).
+  const baselinePath = args.baseline ?? config.baseline;
+  const baseline = baselinePath ? await readBaseline(baselinePath) : null;
 
   const ui = createUi({ color: colorEnabled(process.env, Boolean(process.stdout.isTTY)), columns: process.stdout.columns });
   const live = spinner(ui, (t) => process.stdout.write(t));
@@ -94,15 +101,20 @@ export async function runCommand(args: RunArgs): Promise<number> {
     onPlanted: () => live.update("judging planted errors"),
   }).finally(() => live.clear());
 
+  if (only) report.partial = true;
+  if (baseline) report.baseline = compareReports(baseline, report);
   const out = args.out ?? config.report ?? "noxeval-report.json";
   await writeFile(out, JSON.stringify(report, null, 2) + "\n");
   const md = toMarkdown(report);
   if (args.markdown) await writeFile(args.markdown, md + "\n");
   if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, md + "\n");
 
+  const gate = report.baseline ? comparisonLines(report.baseline) : baselinePath ? [missingBaseline(baselinePath)] : [];
   if (ui.color)
     console.log(
-      `\n${summaryBox(ui, report)}\n  ${ui.c.dim(`report: ${out}${judge ? " · check the judge with: npx noxeval review" : ""}`)}\n`,
+      `\n${summaryBox(ui, report)}\n` +
+        gate.map((l, i) => `  ${i === 0 && report.baseline?.passed === false ? ui.c.red(l) : ui.c.gold(l)}\n`).join("") +
+        `  ${ui.c.dim(`report: ${out}${judge ? " · check the judge with: npx noxeval review" : ""}`)}\n`,
     );
   else {
     console.log(
@@ -127,8 +139,11 @@ export async function runCommand(args: RunArgs): Promise<number> {
       );
       if (p.missed.length) console.log(`  missed: ${p.missed.join(", ")}`);
     }
+    for (const line of gate) console.log(line);
     console.log(`report: ${out}${judge ? " · check the judge with: npx noxeval review" : ""}`);
   }
+  // With a baseline, only a regression fails the run; known failures stay listed above.
+  if (report.baseline) return report.baseline.passed ? 0 : 1;
   return report.passed === report.total ? 0 : 1;
 }
 
@@ -181,5 +196,12 @@ function summaryBox(ui: Ui, r: Report): string {
   }
   const read = [...(r.judge?.disagreements ?? []), ...(r.planted?.missed ?? [])];
   if (read.length) lines.push("", ...wrap(`read these: ${read.join(", ")}`, ui.width - 4).map((l) => ui.c.gold(l)));
-  return ui.box(lines, r.passed === r.total ? "all passed" : `${r.total - r.passed} failed`);
+  const title = r.baseline
+    ? r.baseline.passed
+      ? `no regressions${r.passed < r.total ? ` · ${r.total - r.passed} known` : ""}`
+      : `${r.baseline.regressed.length} regressed`
+    : r.passed === r.total
+      ? "all passed"
+      : `${r.total - r.passed} failed`;
+  return ui.box(lines, title);
 }
