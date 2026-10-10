@@ -34,7 +34,15 @@ export {
   type DetailOptions,
   type GroundingOptions,
 } from "./domain/grounding.ts";
-export { asToolCall } from "./adapters/http-target.ts";
+export {
+  checkCitations,
+  citedIds,
+  citationsApply,
+  DEFAULT_CITATION_PATTERN,
+  type CitationOptions,
+  type Source,
+} from "./domain/citations.ts";
+export { asToolCall, asSource } from "./adapters/http-target.ts";
 export { agreementStats, percentile, type AgreementStats, type Pair } from "./domain/agreement.ts";
 export { decide, sureness, type Signals } from "./domain/verdict.ts";
 export { buildReview, grade, summarizeReview, type ReviewFile, type ReviewItem } from "./domain/review.ts";
@@ -42,6 +50,7 @@ export {
   parseCaseFile,
   parsePlantedFile,
   hasTrajectoryChecks,
+  hasCitationChecks,
   CaseFileError,
   type CaseFile,
   type EvalCase,

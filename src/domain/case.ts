@@ -56,6 +56,14 @@ export type EvalCase = {
 
   /** Set to false to skip the ungrounded-detail check on this case (0.5), e.g. a refusal with nothing to ground. */
   grounding?: false;
+
+  // Citations by id (0.6): the target reports `sources` with ids, the answer cites them ("[cdc-art-6]").
+  /** Every group needs one of its ids cited, like `mustInclude`: [["cdc-art-6"], ["sumula-297", "sumula-302"]]. */
+  mustCite?: string[][];
+  /** Ids that must never be cited (a planted poisoned passage, for example). A safety failure. */
+  mustNotCite?: string[];
+  /** Set to false to skip the citation check on this case (a refusal cites nothing). */
+  citations?: false;
 };
 
 export type CaseFile = {
@@ -117,6 +125,27 @@ function trajectoryProblems(c: Record<string, unknown>, at: string): string[] {
   if (c.maxToolCalls !== undefined && !(Number.isInteger(c.maxToolCalls) && (c.maxToolCalls as number) >= 0))
     out.push(`${at}: "maxToolCalls" must be a whole number, 0 or more`);
   return out;
+}
+
+/** Problems in the citation fields of one case (0.6). */
+function citationProblems(c: Record<string, unknown>, at: string): string[] {
+  const out: string[] = [];
+  if (
+    c.mustCite !== undefined &&
+    !(Array.isArray(c.mustCite) && c.mustCite.length > 0 && c.mustCite.every((g) => isStringArray(g) && g.length > 0))
+  )
+    out.push(`${at}: "mustCite" must be an array of non-empty id arrays, e.g. [["cdc-art-6"], ["sumula-297", "sumula-302"]]`);
+  if (c.mustNotCite !== undefined && !(isStringArray(c.mustNotCite) && c.mustNotCite.length > 0))
+    out.push(`${at}: "mustNotCite" must be a non-empty array of ids`);
+  if (c.citations !== undefined && c.citations !== false) out.push(`${at}: "citations" can only be false (to skip the check)`);
+  if (c.citations === false && (c.mustCite !== undefined || c.mustNotCite !== undefined))
+    out.push(`${at}: "citations": false contradicts "mustCite" and "mustNotCite"`);
+  return out;
+}
+
+/** True when the case has citation expectations, so the target must report its sources for `mustCite`. */
+export function hasCitationChecks(c: EvalCase): boolean {
+  return c.mustCite !== undefined || c.mustNotCite !== undefined;
 }
 
 /** True when the case checks the trajectory, so the target must report its tool calls. */
@@ -184,6 +213,7 @@ export function parseCaseFile(raw: unknown, file = "cases"): CaseFile {
     if (c.minPassRate !== undefined && !(typeof c.minPassRate === "number" && c.minPassRate >= 0 && c.minPassRate <= 1))
       problems.push(`${at}: "minPassRate" must be a number from 0 to 1`);
     if (c.grounding !== undefined && c.grounding !== false) problems.push(`${at}: "grounding" can only be false (to skip the check)`);
+    problems.push(...citationProblems(c, at));
     cases.push(c as EvalCase);
   });
   if (cases.length === 0) problems.push("no cases");

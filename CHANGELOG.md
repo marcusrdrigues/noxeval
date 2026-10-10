@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Citations by id: targets report `sources` (`{ id, text }[]`; `httpTarget({ sourcesPath })`) and cases check them with `mustCite` (groups, one id of each must be cited) and `mustNotCite`. Citing an id that is not among the sources fails with `citation-unknown` and citing a forbidden one with `citation-forbidden`, both safety failures; a missed group fails with `citation-missing`, and `mustCite` without reported sources with `no-sources`. `checks.citations.pattern` changes how ids are found (default `[id]`, Markdown links skipped); a case skips the check with `"citations": false`. Without `context`, the sources' texts are the context. `citations` per case in the report; `checkCitations`, `citedIds`, `citationsApply`, `hasCitationChecks`, `asSource` and `DEFAULT_CITATION_PATTERN` exported.
+
 ## [0.5.0] - 2026-10-06
 
 ### Added
