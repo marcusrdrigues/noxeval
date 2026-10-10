@@ -40,6 +40,7 @@ export function toMarkdown(r: Report): string {
     lines.push(b.passed ? `## noxeval: no regressions ✅ ${counts}` : `## noxeval: ${b.regressed.length} regressed ❌ ${counts}`, "");
   } else lines.push(`## noxeval: ${r.passed}/${r.total} passed ${r.passed === r.total ? "✅" : "❌"}`, "");
   lines.push(`Target \`${cell(r.target)}\` · ${r.runAt} · latency p50 ${r.latencyMs.p50 ?? "-"} ms, p90 ${r.latencyMs.p90 ?? "-"} ms`, "");
+  for (const n of r.notes ?? []) lines.push(`Note: ${cell(n)}.`, "");
   if (b) lines.push(...comparisonTable(b));
 
   const categories = Object.entries(r.categories);

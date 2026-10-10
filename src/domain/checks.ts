@@ -31,7 +31,9 @@ export type FailureCode =
   | "citation-unknown"
   | "citation-forbidden"
   | "citation-missing"
-  | "no-sources";
+  | "no-sources"
+  // Recorded answers (0.6): the target had no answer for the case (or for this attempt).
+  | "no-answer";
 
 export type Failure = { code: FailureCode; detail: string };
 

@@ -26,7 +26,8 @@ export type HttpTargetOptions = {
   name?: string;
 };
 
-const asText = (item: unknown): string | null =>
+/** A context item: a string, or an object with a "text" field. Anything else is null. */
+export const asText = (item: unknown): string | null =>
   typeof item === "string"
     ? item
     : item && typeof item === "object" && typeof (item as { text?: unknown }).text === "string"

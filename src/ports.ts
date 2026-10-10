@@ -21,6 +21,12 @@ export type TargetResponse = {
    * `mustCite` then fail with `no-sources`.
    */
   sources?: Source[];
+  /**
+   * Time the app took, in ms, measured by the app itself (0.6): time inside the app, without the network, or the time
+   * recorded with an answer read from a file. Overrides noxeval's own clock; null means "not measured", so a file read
+   * in 0 ms never shows up as a 0 ms latency.
+   */
+  ms?: number | null;
   /** Anything worth keeping in the report for this case (request id, model that answered...). */
   meta?: Record<string, string | number | boolean | null>;
 };
@@ -28,7 +34,24 @@ export type TargetResponse = {
 export interface Target {
   /** Shown in the report. */
   readonly name: string;
+  /**
+   * Optional (0.6): called once before the first case, with every case of the suite (not only the ones this run asks,
+   * with `--only`). Throwing stops the run before any case, for a problem every case would hit (a broken answers
+   * file). The strings it returns are notes for the report ("3 ids match no case").
+   */
+  prepare?(suite: EvalCase[]): Promise<string[] | undefined>;
   ask(c: EvalCase): Promise<TargetResponse>;
+}
+
+/**
+ * Thrown by a target that has no answer for a case (0.6), e.g. a recorded-answers file without its id. The case fails
+ * with `no-answer` instead of `error`: the app gave nothing to grade, the adapter didn't break.
+ */
+export class NoAnswerError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NoAnswerError";
+  }
 }
 
 export type JudgeInput = {

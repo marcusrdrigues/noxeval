@@ -71,6 +71,7 @@ export async function runCommand(args: RunArgs): Promise<number> {
   const report = await runEval({
     target: config.target,
     cases,
+    suite: inputs.cases,
     checks:
       args.grounding !== undefined && isGroundingMode(args.grounding) ? { ...inputs.checks, grounding: args.grounding } : inputs.checks,
     judge,
@@ -109,11 +110,14 @@ export async function runCommand(args: RunArgs): Promise<number> {
   if (args.markdown) await writeFile(args.markdown, md + "\n");
   if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, md + "\n");
 
-  const gate = report.baseline ? comparisonLines(report.baseline) : baselinePath ? [missingBaseline(baselinePath)] : [];
+  const gate = [
+    ...(report.notes ?? []).map((n) => `note: ${n}`),
+    ...(report.baseline ? comparisonLines(report.baseline) : baselinePath ? [missingBaseline(baselinePath)] : []),
+  ];
   if (ui.color)
     console.log(
       `\n${summaryBox(ui, report)}\n` +
-        gate.map((l, i) => `  ${i === 0 && report.baseline?.passed === false ? ui.c.red(l) : ui.c.gold(l)}\n`).join("") +
+        gate.map((l) => `  ${l.startsWith("baseline:") && report.baseline?.passed === false ? ui.c.red(l) : ui.c.gold(l)}\n`).join("") +
         `  ${ui.c.dim(`report: ${out}${judge ? " · check the judge with: npx noxeval review" : ""}`)}\n`,
     );
   else {
