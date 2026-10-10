@@ -1,9 +1,22 @@
 import { access, readFile, writeFile } from "node:fs/promises";
+import { resolve, sep } from "node:path";
 import { CONFIG_NAMES, loadConfig, type NoxevalConfig } from "../config.ts";
 import { compareReports, parseBaseline, type Baseline, type Comparison } from "../domain/baseline.ts";
 import type { Report } from "../domain/report.ts";
 
 export const DEFAULT_BASELINE = "noxeval-baseline.json";
+
+/**
+ * A path inside the project folder (where noxeval runs), resolved. The baseline is a file the team commits, so it has
+ * no reason to live elsewhere; refusing `../` and absolute paths outside the folder means an agent misled into passing
+ * `--baseline ~/.bashrc` can't make `baseline update` overwrite it.
+ */
+export function insideProject(path: string, flag: string, root = process.cwd()): string {
+  const base = resolve(root);
+  const full = resolve(base, path);
+  if (!full.startsWith(base + sep)) throw new Error(`${flag} must be a file inside ${base}: ${path}`);
+  return full;
+}
 
 const exists = (path: string) =>
   access(path).then(
@@ -11,18 +24,19 @@ const exists = (path: string) =>
     () => false,
   );
 
-async function readJson(file: string): Promise<unknown> {
+async function readJson(file: string, shown: string): Promise<unknown> {
   try {
     return JSON.parse(await readFile(file, "utf8")) as unknown;
   } catch (err) {
-    throw new Error(`${file}: ${err instanceof Error ? err.message : "cannot read"}`, { cause: err });
+    throw new Error(`${shown}: ${err instanceof Error ? err.message : "cannot read"}`, { cause: err });
   }
 }
 
 /** The baseline at a path, or null when the file doesn't exist yet. A file that exists but is broken is an error. */
 export async function readBaseline(path: string): Promise<Baseline | null> {
-  if (!(await exists(path))) return null;
-  return parseBaseline(await readJson(path), path);
+  const full = insideProject(path, "baseline");
+  if (!(await exists(full))) return null;
+  return parseBaseline(await readJson(full, path), path);
 }
 
 /** "baseline noxeval-baseline.json not found: ..." when a run names a baseline that doesn't exist yet. */
@@ -84,8 +98,10 @@ export async function baselineUpdateCommand(args: BaselineArgs): Promise<number>
   const config = await optionalConfig(args.config);
   const from = args.from ?? config?.report ?? "noxeval-report.json";
   const to = args.baseline ?? config?.baseline ?? DEFAULT_BASELINE;
-  if (!(await exists(from))) throw new Error(`${from} not found: run npx noxeval run first, or pass --from <report>`);
-  const raw = await readJson(from);
+  const fromFile = insideProject(from, "--from");
+  const toFile = insideProject(to, "--baseline");
+  if (!(await exists(fromFile))) throw new Error(`${from} not found: run npx noxeval run first, or pass --from <report>`);
+  const raw = await readJson(fromFile, from);
   if (typeof raw === "object" && raw !== null && (raw as { kind?: unknown }).kind === "noxeval-baseline")
     throw new Error(`${from} is a baseline, not a report: pass the report of the run to accept with --from`);
   // Validates the shape (and refuses a partial run) before anything is printed or written.
@@ -93,7 +109,8 @@ export async function baselineUpdateCommand(args: BaselineArgs): Promise<number>
   const report = raw as Report;
   const previous = await readBaseline(to);
   for (const line of updateLines(previous, report)) console.log(line);
-  await writeFile(to, JSON.stringify(next, null, 2) + "\n");
+  // readBaseline above already refused a file that is not a baseline: update never overwrites anything else.
+  await writeFile(toFile, JSON.stringify(next, null, 2) + "\n");
   console.log(`wrote ${to}: ${next.total} cases, ${next.total - next.passed} known failure(s). Commit it with the change that caused it.`);
   return 0;
 }

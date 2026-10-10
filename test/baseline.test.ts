@@ -190,3 +190,28 @@ export default defineConfig({
 
   assert.equal((await cli(["baseline"], dir)).code, 2, "baseline without a subcommand is a usage error");
 });
+
+test("baseline paths stay inside the project; update never overwrites a file that is not a baseline", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "noxeval-paths-"));
+  await writeFile(join(dir, "noxeval-report.json"), JSON.stringify(report([res("a")])));
+  const outside = await cli(["baseline", "update", "--baseline", "../stolen.json"], dir);
+  assert.equal(outside.code, 2);
+  assert.match(outside.out, /--baseline must be a file inside /);
+  assert.match((await cli(["baseline", "update", "--from", join(tmpdir(), "x.json")], dir)).out, /--from must be a file inside /);
+  await writeFile(
+    join(dir, "noxeval.config.mjs"),
+    `import { defineConfig, functionTarget } from ${JSON.stringify(INDEX)};
+export default defineConfig({ target: functionTarget("t", async () => "ok"), cases: [{ id: "a", question: "q" }] });
+`,
+  );
+  const run = await cli(["run", "--baseline", join(tmpdir(), "elsewhere.json")], dir);
+  assert.equal(run.code, 2, "refused before any call");
+  assert.match(run.out, /baseline must be a file inside /);
+
+  await writeFile(join(dir, "notes.json"), '{"mine": true}');
+  const clobber = await cli(["baseline", "update", "--baseline", "notes.json"], dir);
+  assert.equal(clobber.code, 2);
+  assert.match(clobber.out, /notes.json: not a noxeval baseline or report/);
+  assert.equal(await readFile(join(dir, "notes.json"), "utf8"), '{"mine": true}');
+  assert.equal((await cli(["baseline", "update", "--baseline", "sub/../base.json"], dir)).code, 0, "inside after resolving is fine");
+});

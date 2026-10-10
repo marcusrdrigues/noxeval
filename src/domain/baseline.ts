@@ -52,7 +52,10 @@ export type Comparison = {
   warnings: string[];
 };
 
-const codesOf = (failures: { code: FailureCode }[]): FailureCode[] => [...new Set(failures.map((f) => f.code))].sort();
+/** Code-point order, the same on every machine and locale: the baseline diff must not depend on who ran the update. */
+const byText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
+const codesOf = (failures: { code: FailureCode }[]): FailureCode[] => [...new Set(failures.map((f) => f.code))].sort(byText);
 
 function toBaselineCase(r: CaseResult): BaselineCase {
   return { id: r.id, passed: r.passed, failures: codesOf(r.failures), ...(r.passRate !== undefined ? { passRate: r.passRate } : {}) };
@@ -74,7 +77,7 @@ export function toBaseline(report: Report): Baseline {
     total: report.total,
     passed: report.passed,
     latencyMs: report.latencyMs,
-    cases: report.cases.map(toBaselineCase).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
+    cases: report.cases.map(toBaselineCase).sort((a, b) => byText(a.id, b.id)),
   };
 }
 
