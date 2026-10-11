@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- The language check read a Portuguese answer as English when it had "for" (Portuguese for "is", as in "se o contrato for de consumo") and none of the few Portuguese words listed. Found grading 330 recorded answers of a legal assistant: 1 false `wrong-language`. Words that exist in both languages ("for", "no", "do") no longer count, and both lists have more common words.
+
 ## [0.6.0] - 2026-10-10
 
 A regression gate for RAG apps, from adopting noxeval in a second app (a legal RAG assistant written in Java). Additive: without the new config keys and target fields, a run behaves exactly like 0.5.
