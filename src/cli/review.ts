@@ -4,17 +4,12 @@ import { stdin, stdout } from "node:process";
 import { buildReview, grade, summarizeReview, type ReviewFile } from "../domain/review.ts";
 import type { HumanCheck, Report } from "../domain/report.ts";
 import { colorEnabled, createUi, type Ui } from "./ui.ts";
+import { exists, isNoxevalReport, isReviewFile, targetPath } from "./paths.ts";
 import { VERSION } from "../version.ts";
 
-export type ReviewArgs = { report?: string; file?: string; reset: boolean; summaryOnly: boolean };
+export type ReviewArgs = { report?: string; file?: string; reset: boolean; summaryOnly: boolean; allowOutside: boolean };
 
-const readJson = async <T>(path: string): Promise<T | null> => {
-  try {
-    return JSON.parse(await readFile(path, "utf8")) as T;
-  } catch {
-    return null;
-  }
-};
+const cause = (err: unknown) => (err instanceof Error ? err.message : "cannot read");
 const save = (path: string, data: unknown) => writeFile(path, JSON.stringify(data, null, 2) + "\n");
 const pct = (v: number | null) => (v === null ? "n/a" : `${Math.round(v * 100)}%`);
 
@@ -50,10 +45,21 @@ function print(s: HumanCheck): void {
  * run pick up where you stopped. Reads answers line by line, so it also works with answers piped from a file.
  */
 export async function reviewCommand(args: ReviewArgs): Promise<number> {
-  const reportPath = args.report ?? "noxeval-report.json";
-  const filePath = args.file ?? "noxeval-review.json";
-  const report = await readJson<Report>(reportPath);
-  if (!report) throw new Error(`cannot read ${reportPath}. Run first: npx noxeval run`);
+  const reportArg = args.report ?? "noxeval-report.json";
+  const fileArg = args.file ?? "noxeval-review.json";
+  const reportPath = targetPath(reportArg, "--report", args.allowOutside);
+  const filePath = targetPath(fileArg, "--file", args.allowOutside);
+  // Read strictly: "not there" is the only path to the hint below. A report that exists but is broken says why, and a
+  // file that is not noxeval's is named as such, instead of both quietly reading as if there were nothing.
+  if (!(await exists(reportPath))) throw new Error(`cannot read ${reportArg}. Run first: npx noxeval run`);
+  let rawReport: unknown;
+  try {
+    rawReport = JSON.parse(await readFile(reportPath, "utf8"));
+  } catch (err) {
+    throw new Error(`${reportArg}: ${cause(err)}`, { cause: err });
+  }
+  if (!isNoxevalReport(rawReport)) throw new Error(`${reportArg} is not a noxeval report`);
+  const report = rawReport as Report;
   if (!report.judge) console.warn("note: this run has no judge; the review measures only the deterministic checks.");
 
   const ui = createUi({ color: colorEnabled(process.env, Boolean(stdout.isTTY)), columns: stdout.columns });
@@ -68,7 +74,18 @@ export async function reviewCommand(args: ReviewArgs): Promise<number> {
 
   try {
     const fresh = buildReview(report, new Date().toISOString());
-    let review = await readJson<ReviewFile>(filePath);
+    let review: ReviewFile | null = null;
+    if (await exists(filePath)) {
+      let rawFile: unknown;
+      try {
+        rawFile = JSON.parse(await readFile(filePath, "utf8"));
+      } catch (err) {
+        // A fresh start here would silently throw away the grades and notes saved in the file: the person decides.
+        throw new Error(`${fileArg}: ${cause(err)}. Delete the file to start over (saved grades are lost)`, { cause: err });
+      }
+      if (!isReviewFile(rawFile)) throw new Error(`${fileArg} is not a noxeval review file: move or delete it, or choose another --file`);
+      review = rawFile as ReviewFile;
+    }
     if (args.summaryOnly) {
       const s = review && summarizeReview(review);
       if (s) show(s);
@@ -124,7 +141,7 @@ export async function reviewCommand(args: ReviewArgs): Promise<number> {
     report.human = summary;
     await save(reportPath, report);
     show(summary);
-    console.log(`\nSaved to ${filePath} and to the report (${reportPath}).`);
+    console.log(`\nSaved to ${fileArg} and to the report (${reportArg}).`);
     return 0;
   } finally {
     rl.close();

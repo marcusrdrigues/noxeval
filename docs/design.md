@@ -58,6 +58,14 @@ Citations, cost and latency follow the rule of the other checks: the target repo
 
 _Discarded:_ checking that a cited passage supports its sentence (meaning, the judge's job); estimating cost from token counts and a price table (prices change, and the app knows its own bill); comparing total cost against the baseline (adding cases would read as a dearer app).
 
+## Path confinement
+
+Every path a flag or the config hands to a read or a write resolves inside the folder noxeval runs in, and is validated before any call to the app. noxeval is often run by coding agents, and a flag is not always a choice the person made: an agent misled by prompt injection into passing `--out ~/.bashrc` or `--markdown ../../config.json` must not reach the file system. It is the same rule the baseline followed since 0.6, now on every report, Markdown, review and baseline path.
+
+Refusing to overwrite a file that is not noxeval's is the second half: a CI layout that writes outside the project passes `--allow-outside`, which skips only the folder check, never the guard. On Windows, paths compare case-insensitively, as the file system does.
+
+_Discarded:_ confinement with no opt-out. CI layouts legitimately write to `../artifacts`, and a tool that breaks them gets its flags deleted from the workflow. Also discarded: resolving symlinks with `realpath` before writing; a race between the check and the write would remain, so the rule is about the path as given, like the baseline's.
+
 ## No runtime dependencies
 
 Node 22 has `fetch`, `readline`, `util.parseArgs` and type stripping. Fewer dependencies means a smaller supply-chain surface (OWASP LLM04) for a tool that handles API keys.
