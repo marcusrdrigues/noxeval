@@ -23,12 +23,14 @@ run options:
       --grounding <mode>            off, report or check: numbers and names must be in the context
       --baseline <file>             compare with an accepted run: fail only on regressions
       --no-judge                    skip the judge and planted errors
+      --allow-outside               let --out and --markdown write outside the project folder
 
 review options:
   -r, --report <file>               default noxeval-report.json
   -f, --file <file>                 review file (default noxeval-review.json)
       --reset                       start this run's review over
       --summary                     only print the agreement numbers
+      --allow-outside               let --report and --file read and write outside the project folder
 
 baseline update options:
       --from <file>                 report to accept (default from config or noxeval-report.json)
@@ -52,6 +54,7 @@ async function main(argv: string[]): Promise<number> {
       baseline: { type: "string" },
       from: { type: "string" },
       "no-judge": { type: "boolean" },
+      "allow-outside": { type: "boolean" },
       report: { type: "string", short: "r" },
       file: { type: "string", short: "f" },
       reset: { type: "boolean" },
@@ -82,6 +85,7 @@ async function main(argv: string[]): Promise<number> {
         grounding: values.grounding,
         baseline: values.baseline,
         noJudge: values["no-judge"] === true,
+        allowOutside: values["allow-outside"] === true,
       });
     case "review":
       return reviewCommand({
@@ -89,6 +93,7 @@ async function main(argv: string[]): Promise<number> {
         file: values.file,
         reset: values.reset === true,
         summaryOnly: values.summary === true,
+        allowOutside: values["allow-outside"] === true,
       });
     case "baseline":
       if (positionals[1] !== "update") {

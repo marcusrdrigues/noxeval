@@ -224,6 +224,8 @@ A tabela completa está no [README em inglês](README.md#regression-gate).
 
 `noxeval run` sai com 1 quando algum caso falha (com linha de base: quando algo regrediu) e escreve um resumo em Markdown no resumo do job do GitHub Actions. O exemplo de workflow está no [README em inglês](README.md#in-ci).
 
+Os caminhos do relatório, do Markdown, da revisão e da linha de base precisam ficar dentro da pasta em que o noxeval roda, e o noxeval nunca sobrescreve um arquivo que não seja dele. Um layout de CI que escreva fora disso passa `--allow-outside` para `run` e `review`.
+
 ## Licença
 
 [MIT](LICENSE) © Marcus Rodrigues

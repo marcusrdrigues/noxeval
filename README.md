@@ -342,6 +342,8 @@ With a baseline, the run exits with 1 only when something **regressed**:
     path: noxeval-report.*
 ```
 
+Report, Markdown, review and baseline paths must resolve inside the folder noxeval runs in, and noxeval never overwrites a file that is not one of its own. A CI layout that writes elsewhere passes `--allow-outside` to `run` and `review`.
+
 ## Programmatic use
 
 ```js

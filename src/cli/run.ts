@@ -9,6 +9,7 @@ import { VERSION } from "../version.ts";
 import { colorEnabled, createUi, spinner, wrap, type Ui } from "./ui.ts";
 import { compareReports } from "../domain/baseline.ts";
 import { comparisonLines, missingBaseline, readBaseline } from "./baseline.ts";
+import { guardNoxevalFile, targetPath } from "./paths.ts";
 
 export type RunArgs = {
   config?: string;
@@ -21,6 +22,8 @@ export type RunArgs = {
   /** Baseline file to compare with (0.6); overrides `baseline` in the config. */
   baseline?: string;
   noJudge: boolean;
+  /** Let --out and --markdown write outside the project folder (0.7): a CI layout that writes to ../artifacts. */
+  allowOutside: boolean;
 };
 
 const GROUNDING_MODES = ["off", "report", "check"] as const;
@@ -60,6 +63,16 @@ export async function runCommand(args: RunArgs): Promise<number> {
   // Read before any call: a broken baseline fails fast; a missing one means "every case must pass" (stricter, never looser).
   const baselinePath = args.baseline ?? config.baseline;
   const baseline = baselinePath ? await readBaseline(baselinePath) : null;
+  // Resolved and guarded before any call to the app: a path outside the project folder fails here (exit 2), not after
+  // the run has paid for every answer, and an existing file that is not noxeval's is never overwritten (#8).
+  const out = args.out ?? config.report ?? "noxeval-report.json";
+  const outPath = targetPath(out, args.out ? "--out" : "report in the config", args.allowOutside);
+  await guardNoxevalFile(outPath, out, "report");
+  let markdownPath: string | null = null;
+  if (args.markdown) {
+    markdownPath = targetPath(args.markdown, "--markdown", args.allowOutside);
+    await guardNoxevalFile(markdownPath, args.markdown, "summary");
+  }
 
   const ui = createUi({ color: colorEnabled(process.env, Boolean(process.stdout.isTTY)), columns: process.stdout.columns });
   const live = spinner(ui, (t) => process.stdout.write(t));
@@ -107,10 +120,9 @@ export async function runCommand(args: RunArgs): Promise<number> {
 
   if (only) report.partial = true;
   if (baseline) report.baseline = compareReports(baseline, report, { costWarnPercent: config.costWarnPercent });
-  const out = args.out ?? config.report ?? "noxeval-report.json";
-  await writeFile(out, JSON.stringify(report, null, 2) + "\n");
+  await writeFile(outPath, JSON.stringify(report, null, 2) + "\n");
   const md = toMarkdown(report);
-  if (args.markdown) await writeFile(args.markdown, md + "\n");
+  if (markdownPath) await writeFile(markdownPath, md + "\n");
   if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, md + "\n");
 
   const gate = [

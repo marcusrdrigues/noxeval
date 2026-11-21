@@ -4,9 +4,18 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- `--allow-outside` for `run` and `review`: the report, the Markdown summary and the review file may resolve outside the folder noxeval runs in, for CI layouts that write to `../artifacts`. The opt-out skips only the folder check: a file that is not noxeval's is still never overwritten.
+
+### Changed
+
+- Report, Markdown and review paths are confined like the baseline paths since 0.6 (#8): `--out`, `--markdown`, `report` in the config, `--report` and `--file` must resolve inside the folder noxeval runs in, and a path outside fails with exit 2 before any call to the app. noxeval never overwrites an existing file that is not a noxeval report, Markdown summary or review file — with `--allow-outside` too. On Windows, paths compare case-insensitively.
+
 ### Fixed
 
 - The language check read a Portuguese answer as English when it had "for" (Portuguese for "is", as in "se o contrato for de consumo") and none of the few Portuguese words listed. Found grading 330 recorded answers of a legal assistant: 1 false `wrong-language`. Words that exist in both languages ("for", "no", "do") no longer count, and both lists have more common words.
+- `noxeval review` no longer starts over a review file it cannot read: a broken file was silently replaced by a fresh one, losing the grades and notes saved in it. The error now says what is wrong with the file and how to start over. A report that exists but is broken says why it cannot be read, instead of the "run first" hint, and a file that is not a noxeval report is named as such.
 
 ## [0.6.0] - 2026-10-10
 

@@ -1,29 +1,11 @@
-import { access, readFile, writeFile } from "node:fs/promises";
-import { resolve, sep } from "node:path";
+import { readFile, writeFile } from "node:fs/promises";
 import { CONFIG_NAMES, loadConfig, type NoxevalConfig } from "../config.ts";
 import { compareReports, parseBaseline, type Baseline, type Comparison } from "../domain/baseline.ts";
 import { changesText } from "../app/markdown.ts";
 import type { Report } from "../domain/report.ts";
+import { exists, insideProject } from "./paths.ts";
 
 export const DEFAULT_BASELINE = "noxeval-baseline.json";
-
-/**
- * A path inside the project folder (where noxeval runs), resolved. The baseline is a file the team commits, so it has
- * no reason to live elsewhere; refusing `../` and absolute paths outside the folder means an agent misled into passing
- * `--baseline ~/.bashrc` can't make `baseline update` overwrite it.
- */
-export function insideProject(path: string, flag: string, root = process.cwd()): string {
-  const base = resolve(root);
-  const full = resolve(base, path);
-  if (!full.startsWith(base + sep)) throw new Error(`${flag} must be a file inside ${base}: ${path}`);
-  return full;
-}
-
-const exists = (path: string) =>
-  access(path).then(
-    () => true,
-    () => false,
-  );
 
 async function readJson(file: string, shown: string): Promise<unknown> {
   try {
