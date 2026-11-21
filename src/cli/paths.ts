@@ -37,8 +37,8 @@ const asRecord = (raw: unknown) => (typeof raw === "object" && raw !== null ? (r
 export const isNoxevalReport = (raw: unknown): boolean =>
   asRecord(asRecord(raw).tool).name === "noxeval" && Array.isArray(asRecord(raw).cases);
 export const isReviewFile = (raw: unknown): boolean => Array.isArray(asRecord(raw).items) && typeof asRecord(raw).runAt === "string";
-/** Every Markdown summary opens with "## noxeval: ". */
-export const isNoxevalSummary = (text: string): boolean => /^## noxeval: /m.test(text);
+/** Every Markdown summary opens with "## noxeval: ". No `m`: `^` anchors the start of the text, not of a line, so a file that only mentions the heading in the middle (a README documenting the output) is not noxeval's. */
+export const isNoxevalSummary = (text: string): boolean => /^## noxeval: /.test(text);
 
 /**
  * Refuses to overwrite a file noxeval did not write: the report, the Markdown summary and the review file are the

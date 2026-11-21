@@ -107,6 +107,16 @@ test("guardNoxevalFile: only a noxeval report, summary or review file is overwri
     () => guardNoxevalFile(join(dir, "notes.md"), "notes.md", "summary"),
     /notes.md exists and is not a noxeval summary file/,
   );
+  await writeFile(join(dir, "docs.md"), "# Docs\n\nA noxeval summary opens with:\n\n## noxeval: 1/1 passed ✅\n");
+  await assert.rejects(
+    () => guardNoxevalFile(join(dir, "docs.md"), "docs.md", "summary"),
+    /docs.md exists and is not a noxeval summary file/,
+  );
+  assert.equal(
+    isNoxevalSummary(await readFile(join(dir, "docs.md"), "utf8")),
+    false,
+    "the noxeval line in the middle does not make a file noxeval's",
+  );
   await writeFile(join(dir, "broken.json"), "{oops");
   await assert.rejects(
     () => guardNoxevalFile(join(dir, "broken.json"), "broken.json", "report"),
@@ -157,6 +167,13 @@ test("run paths stay inside the project, and no file that is not noxeval's is ov
     assert.equal(clobber.code, 2);
     assert.match(clobber.out, /notes.json exists and is not a noxeval report file/);
     assert.equal(await readFile(join(dir, "notes.json"), "utf8"), '{"mine": true}');
+    await writeFile(join(dir, "README.md"), "# My app\n\nA noxeval summary opens with:\n\n## noxeval: 1/1 passed ✅\n");
+    const seen = app.seen.length;
+    const readme = await cli(["run", "--markdown", "README.md"], dir);
+    assert.equal(readme.code, 2);
+    assert.match(readme.out, /README.md exists and is not a noxeval summary file/);
+    assert.equal(app.seen.length, seen, "refused before any call to the app");
+    assert.match(await readFile(join(dir, "README.md"), "utf8"), /^# My app/, "the file is not overwritten");
     const rerun = await cli(["run"], dir);
     assert.equal(rerun.code, 0, rerun.out);
   } finally {
